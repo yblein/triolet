@@ -66,19 +66,19 @@ inBoard :: Coord -> Bool
 inBoard (x, y) = x >= 0 && x < boardsize && y >= 0 && y < boardsize
 
 validMove :: Board -> Move -> Bool
-validMove board move = f board move && aligned (map fst move)
+validMove board move = aligned (map fst move) && validTiles board move
   where
-    f board [] = True
-    f board ((c, t):xs) = playable board c t && f (Map.insert c t board) xs
+    validTiles board [] = True
+    validTiles board ((c, t):xs) = playable board c t && validTiles (Map.insert c t board) xs
 
--- TODO: playing around an existing tile (N - O - N)
 aligned :: [Coord] -> Bool
 aligned xs = any aligned' [xs, map swap xs]
   where
     aligned' xs = allEq (map fst xs) && cont (map snd xs)
     allEq xs = all (== head xs) (tail xs)
-    cont xs = all (== 1) $ zipWith (-) (tail xs') xs'
+    cont xs = all (== 1) ds || ds == [2]
       where xs' = sort xs
+            ds = zipWith (-) (tail xs') xs'
 
 playable :: Board -> Coord -> Tile -> Bool
 playable board coord@(x, y) tile =
