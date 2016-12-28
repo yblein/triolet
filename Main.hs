@@ -2,6 +2,7 @@ import Control.Arrow
 import Control.Monad
 import Graphics.Gloss
 import Graphics.Gloss.Interface.Pure.Game
+import System.Random
 import System.Random.Shuffle
 import Debug.Trace
 import Data.Map (Map)
@@ -51,16 +52,15 @@ powerset :: [a] -> [[a]]
 powerset = filterM $ const [True, False]
 
 permsSumLE15 :: Rack -> [[Tile]]
-permsSumLE15 = concatMap permutations . filter (\l -> sum l <= trioSum) . init . powerset
+permsSumLE15 = nub . concatMap permutations . filter valid . init . powerset
+  where valid l = sum l <= trioSum && ((length l == trioCount) `implies` (sum l == trioSum))
 
 legalMoves :: Board -> Rack -> [Move]
-legalMoves board rack = filter (validMove board) allMoves
+legalMoves board rack = traceShowId $ filter (validMove board) allMoves
   where
-    allMoves = nub $ concatMap movesFor $ permsSumLE15 rack
-    movesFor perm = concatMap (movesForFrom perm) $ liftM2 (,) [0..boardsize] [0..boardsize]
-    movesForFrom perm coords = nub $ map (flip zip perm) $ coordsFrom coords
-    coordsFrom (x, y) = [ zip (repeat x) [y,y+1..], zip (repeat x) [y,y-1..]
-                        , zip [x,x+1..] (repeat y), zip [x,x-1..] (repeat y) ]
+    allCoords = liftM2 (,) [0..boardsize - 1] [0..boardsize - 1]
+    allMoves = concatMap movesFor $ traceShowId $ permsSumLE15 rack
+    movesFor perm = map (\xs -> zip xs perm) $ replicateM (length perm) allCoords
 
 inBoard :: Coord -> Bool
 inBoard (x, y) = x >= 0 && x < boardsize && y >= 0 && y < boardsize
@@ -82,16 +82,16 @@ aligned xs = any aligned' [xs, map swap xs]
 
 playable :: Board -> Coord -> Tile -> Bool
 playable board coord@(x, y) tile =
-  inBoard coord && empty && (middle || (adj && nbAlignInfMax && sumAlignInfMax && trio && firstSquares))
+  inBoard coord && empty && (firstTile || (adj && nbAlignLEMax && sumAlignLEMax && trio && firstSquares))
   where
     empty = not $ Map.member coord board
-    middle = coord == (boardsize `div` 2, boardsize `div` 2)
+    firstTile = coord == (boardsize `div` 2, boardsize `div` 2)
     nbH = alignHor coord board (const 1) + 1
     nbV = alignVer coord board (const 1) + 1
-    nbAlignInfMax = nbH <= trioCount && nbV <= trioCount
+    nbAlignLEMax = nbH <= trioCount && nbV <= trioCount
     sumH = alignHor coord board id + tile
     sumV = alignVer coord board id + tile
-    sumAlignInfMax = sumH <= trioSum && sumV <= trioSum
+    sumAlignLEMax = sumH <= trioSum && sumV <= trioSum
     trio = ((nbH == trioCount) `implies` (sumH == trioSum)) && ((nbV == trioCount) `implies` (sumV == trioSum))
     adj = nbH >= 2 || nbV >= 2
     firstSquares = (Map.size board == 3) `implies` (not $ nbH == 2 && nbV == 2)
@@ -159,6 +159,7 @@ showTile t
 
 
 main = do
+  setStdGen $ mkStdGen 0
   bag <- shuffleM initBag
   play
     (InWindow "Triolet" (150, 150) (0, 0))
