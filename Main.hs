@@ -119,14 +119,15 @@ implies a b = not a || b
 
 scoreFor :: Board -> Move -> Int
 scoreFor board [] = 0
-scoreFor board move =
-  if onlyFirst then
-    snd (head move)
-  else if allEq (map fst coords) then
-    head (sums alignVer) + sum (sums (alignHor))
-  else
-    head (sums alignHor) + sum (sums alignVer)
+scoreFor board move = baseScore + if length move == 3 then trioletBonus else 0
   where
+    baseScore =
+      if onlyFirst then
+        snd (head move)
+      else if allEq (map fst coords) then
+        head (sums alignVer) + sum (sums alignHor)
+      else
+        head (sums alignHor) + sum (sums alignVer)
     board' = foldl (\b (c, t) -> Map.insert c t b) board move
     onlyFirst = Map.size board' == 1
     coords = map fst move
