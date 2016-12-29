@@ -67,18 +67,21 @@ legalMoves board rack = traceShowId $ filter (validMove board) allMoves
 
 -- TODO: play around an existing tile
 validMove :: Board -> Move -> Bool
-validMove board move = aligned (map fst move) && validTiles board move
+validMove board move = aligned board (map fst move) && validTiles board move
   where
     validTiles board [] = True
     validTiles board ((c, t):xs) = playable board c t && validTiles (Map.insert c t board) xs
 
-aligned :: [Coord] -> Bool
-aligned xs = any aligned' [xs, map swap xs]
+aligned :: Board -> [Coord] -> Bool
+aligned board coords = any aligned' [coords, map swap coords]
   where
-    aligned' xs = allEq (map fst xs) && cont (map snd xs)
-    cont xs = all (== 1) ds
-      where xs' = sort xs
-            ds = zipWith (-) (tail xs') xs'
+    aligned' coords = allEq (map fst coords) && (cont || around)
+      where
+        xs' = sort $ map snd coords
+        ds = zipWith (-) (tail xs') xs'
+        cont = all (== 1) ds
+        around = ds == [2] && Map.member (mid (head coords) (last coords)) board
+        mid (ax, ay) (bx, by) = (ax + (bx - ax) `div` 2, ay + (by - ay) `div` 2)
 
 inBoard :: Coord -> Bool
 inBoard (x, y) = x >= 0 && x < boardsize && y >= 0 && y < boardsize
