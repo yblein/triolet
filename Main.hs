@@ -186,13 +186,14 @@ playMove (GameState board bag players currentPlayer False) move = gameState'
   where
     board' = foldl (\b (c, t) -> Map.insert c t b) board move
     (score, rack) = Seq.index players currentPlayer
-    currentPlayer' = (currentPlayer + 1) `mod` (length players)
+    hasBis = any isBis $ map fst move
+    nextPlayer = if hasBis then currentPlayer else (currentPlayer + 1) `mod` (length players)
     (newTiles, bag') = splitAt (length move) bag
     rack' = newTiles ++ (rack \\ map snd move)
     score' = score + scoreFor board' move + if isOver then sum $ concatMap snd players' else 0
     players' = Seq.update currentPlayer (score', rack') players
     isOver = null rack'
-    gameState' = GameState board' bag' players' currentPlayer' isOver
+    gameState' = GameState board' bag' players' nextPlayer isOver
 
 handleTileClick :: Coord -> GameState -> GameState
 handleTileClick _ gs@(GameState _ _ players _ True) = traceShow players $ gs
@@ -217,7 +218,7 @@ showTile t
 
 
 main = do
-  setStdGen $ mkStdGen 1
+  setStdGen $ mkStdGen 4
   bag <- shuffleM initBag
   play
     (InWindow "Triolet" (150, 150) (0, 0))
