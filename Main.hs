@@ -14,7 +14,7 @@ import qualified Data.Sequence as Seq
 import Data.Tuple
 import Data.Ord
 
-boardsize = 15
+boardSize = 15
 trioSum = 15
 trioCount = 3
 trioBonus = 15
@@ -63,7 +63,7 @@ legalMoves board rack = concatMap (rec board []) $ permsSumLE15 rack
     rec board move [] = [move]
     rec board move (t:ts) = concatMap (\c -> rec (Map.insert c t board) ((c, t):move) ts) validCoords
       where validCoords = filter (\c -> playable board c t && aligned board (c:(map fst move))) allCoords
-    allCoords = liftM2 (,) [0..boardsize - 1] [0..boardsize - 1]
+    allCoords = liftM2 (,) [0..boardSize - 1] [0..boardSize - 1]
 
 aligned :: Board -> [Coord] -> Bool
 aligned board coords = any aligned' [coords, map swap coords]
@@ -77,7 +77,7 @@ aligned board coords = any aligned' [coords, map swap coords]
         mid (ax, ay) (bx, by) = (ax + (bx - ax) `div` 2, ay + (by - ay) `div` 2)
 
 inBoard :: Coord -> Bool
-inBoard (x, y) = x >= 0 && x < boardsize && y >= 0 && y < boardsize
+inBoard (x, y) = x >= 0 && x < boardSize && y >= 0 && y < boardSize
 
 allEq xs = all (== head xs) (tail xs)
 
@@ -86,7 +86,7 @@ playable board coord@(x, y) tile =
   inBoard coord && empty && (firstTile || (adj && nbAlignLEMax && sumAlignLEMax && trio && firstSquares))
   where
     empty = Map.notMember coord board
-    firstTile = coord == (boardsize `div` 2, boardsize `div` 2)
+    firstTile = coord == (boardSize `div` 2, boardSize `div` 2)
     nbH = alignHor coord board (const 1) + 1
     nbV = alignVer coord board (const 1) + 1
     nbAlignLEMax = nbH <= trioCount && nbV <= trioCount
@@ -134,6 +134,24 @@ scoreFor board move =
       where s = fdir c board' id
             s' = s + (if nb > 1 then t else 0)
             nb = 1 + fdir c board' (const 1)
+
+isDouble :: Coord -> Bool
+isDouble (x, y) = (y == m && dx == 4) || (x == m && dy == 4) || (dx == 3 && dy == 3) || (x, y) == (m, m)
+  where (m, dx, dy) = midAndOffsets (x, y)
+
+isTripple :: Coord -> Bool
+isTripple (x, y) = (dx == 3 && dy == 6) || (dx == 6 && dy == 3)
+  where (_, dx, dy) = midAndOffsets (x, y)
+
+isBis :: Coord -> Bool
+isBis (x, y) = (y == m && dx == 7) || (x == m && dy == 7) || (dx == 6 && dy == 6)
+  where (m, dx, dy) = midAndOffsets (x, y)
+
+midAndOffsets (x, y) = (m, dx, dy)
+  where
+    m = boardSize `div` 2
+    dx = abs $ m - x
+    dy = abs $ m - y
 
 handleEvent :: Event -> GameState -> GameState
 handleEvent (EventKey (MouseButton LeftButton) Up _ pos) ctx =
