@@ -31,11 +31,12 @@ type Board = Map Coord Tile
 type Bag = [Tile]
 type Rack = [Tile]
 type Move = [(Coord, Tile)]
+type Player = (Int, Rack)
 
 data GameState = GameState
   { board :: Board
   , bag :: Bag
-  , racks :: Seq Rack
+  , players :: Seq Player
   , currentPlayer :: Int
   , isOver :: Bool
   }
@@ -47,7 +48,7 @@ initRacks :: State Bag [Rack]
 initRacks = replicateM nbPlayers $ state $ splitAt rackSize
 
 initContext :: Bag -> GameState
-initContext bag = GameState Map.empty bag' (Seq.fromList racks) 0 False
+initContext bag = GameState Map.empty bag' (Seq.fromList $ zip (repeat 0) racks) 0 False
   where (racks, bag') = runState initRacks bag
 
 powerset :: [a] -> [[a]]
@@ -154,31 +155,34 @@ midAndOffsets (x, y) = (m, dx, dy)
     dy = abs $ m - y
 
 handleEvent :: Event -> GameState -> GameState
-handleEvent (EventKey (MouseButton LeftButton) Up _ pos) ctx =
-  handleTileClick (posToCoord pos) ctx
+handleEvent (EventKey (MouseButton LeftButton) Up _ pos) gs =
+  handleTileClick (posToCoord pos) gs
     where
       posToCoord (x, y) = (7 + (truncate (x+25)) `div` 50, 7 + (truncate (y+25)) `div` 50)
-handleEvent _ ctx = ctx
+handleEvent _ gs = gs
 
 maximumOn f = fst . maximumBy (comparing snd) . map (id &&& f)
 
 -- assume that the move is valid (i.e. it respects the game constraints and the player owns the played tiles)
 playMove :: GameState -> Move -> GameState
-playMove ctx@(GameState _ _ _ _ True) _ = ctx
-playMove (GameState board bag racks currentPlayer False) move = GameState board' bag' racks' currentPlayer' isOver
+playMove gs@(GameState _ _ _ _ True) _ = gs
+playMove (GameState board bag players currentPlayer False) move = gameState'
   where
     board' = foldl (\b (c, t) -> Map.insert c t b) board move
+    (score, rack) = Seq.index players currentPlayer
+    currentPlayer' = (currentPlayer + 1) `mod` (length players)
     (newTiles, bag') = splitAt (length move) bag
-    currentPlayer' = (currentPlayer + 1) `mod` (length racks)
-    racks' = Seq.update currentPlayer rack' racks
-    rack' = newTiles ++ (racks `Seq.index` currentPlayer \\ map snd move)
+    rack' = newTiles ++ (rack \\ map snd move)
+    score' = score + scoreFor board' move
+    players' = Seq.update currentPlayer (score', rack') players
     isOver = null rack'
+    gameState' = GameState board' bag' players' currentPlayer' isOver
 
 handleTileClick :: Coord -> GameState -> GameState
-handleTileClick _ ctx@(GameState _ _ racks _ True) = traceShow racks $ ctx
-handleTileClick _ ctx@(GameState board _ racks currentPlayer False) =
-  traceShow (racks, scoreFor board bestMove, bestMove) $ playMove ctx bestMove
-  where bestMove = maximumOn (scoreFor board) $ legalMoves board $ racks `Seq.index` currentPlayer
+handleTileClick _ gs@(GameState _ _ players _ True) = traceShow players $ gs
+handleTileClick _ gs@(GameState board _ players currentPlayer False) =
+  traceShow (players, scoreFor board bestMove, bestMove) $ playMove gs bestMove
+  where bestMove = maximumOn (scoreFor board) $ legalMoves board $ snd $ Seq.index players currentPlayer
 
 -- Drawing functions
 drawContext :: GameState -> Picture
