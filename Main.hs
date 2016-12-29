@@ -11,10 +11,13 @@ import Data.List
 import Control.Monad.State
 import Data.Array.IArray
 import Data.Tuple
+import Data.Ord
 
 boardsize = 15
 trioSum = 15
 trioCount = 3
+trioBonus = 15
+trioletBonus = 0
 nbPlayers = 4
 rackSize = 3
 
@@ -62,9 +65,7 @@ legalMoves board rack = traceShowId $ filter (validMove board) allMoves
     allMoves = concatMap movesFor $ traceShowId $ permsSumLE15 rack
     movesFor perm = map (\xs -> zip xs perm) $ replicateM (length perm) allCoords
 
-inBoard :: Coord -> Bool
-inBoard (x, y) = x >= 0 && x < boardsize && y >= 0 && y < boardsize
-
+-- TODO: play around an existing tile
 validMove :: Board -> Move -> Bool
 validMove board move = aligned (map fst move) && validTiles board move
   where
@@ -75,16 +76,20 @@ aligned :: [Coord] -> Bool
 aligned xs = any aligned' [xs, map swap xs]
   where
     aligned' xs = allEq (map fst xs) && cont (map snd xs)
-    allEq xs = all (== head xs) (tail xs)
-    cont xs = all (== 1) ds || ds == [2]
+    cont xs = all (== 1) ds
       where xs' = sort xs
             ds = zipWith (-) (tail xs') xs'
+
+inBoard :: Coord -> Bool
+inBoard (x, y) = x >= 0 && x < boardsize && y >= 0 && y < boardsize
+
+allEq xs = all (== head xs) (tail xs)
 
 playable :: Board -> Coord -> Tile -> Bool
 playable board coord@(x, y) tile =
   inBoard coord && empty && (firstTile || (adj && nbAlignLEMax && sumAlignLEMax && trio && firstSquares))
   where
-    empty = not $ Map.member coord board
+    empty = Map.notMember coord board
     firstTile = coord == (boardsize `div` 2, boardsize `div` 2)
     nbH = alignHor coord board (const 1) + 1
     nbV = alignVer coord board (const 1) + 1
@@ -115,6 +120,24 @@ alignDir coord board cost next = sumAlignDir' (next coord)
 implies :: Bool -> Bool -> Bool
 implies a b = not a || b
 
+scoreFor :: Board -> Move -> Int
+scoreFor board [] = 0
+scoreFor board move =
+  if onlyFirst then
+    snd (head move)
+  else if allEq (map fst coords) then
+    head (sums alignVer) + sum (sums (alignHor))
+  else
+    head (sums alignHor) + sum (sums alignVer)
+  where
+    board' = foldl (\b (c, t) -> Map.insert c t b) board move
+    onlyFirst = Map.size board' == 1
+    coords = map fst move
+    sums fdir = map (sum' fdir) move
+    sum' fdir (c, t) = s' + (if s' == trioSum && nb == trioCount then trioBonus else 0)
+      where s = fdir c board' id
+            s' = s + (if nb > 1 then t else 0)
+            nb = 1 + fdir c board' (const 1)
 
 handleEvent :: Event -> Context -> Context
 handleEvent (EventKey (MouseButton LeftButton) Up _ pos) ctx =
@@ -123,24 +146,23 @@ handleEvent (EventKey (MouseButton LeftButton) Up _ pos) ctx =
       posToCoord (x, y) = (7 + (truncate (x+25)) `div` 50, 7 + (truncate (y+25)) `div` 50)
 handleEvent _ ctx = ctx
 
+maximumOn f = fst . maximumBy (comparing snd) . map (\x -> (x, f x))
+
+-- assume that the move is valid (i.e. respect game constraints and the player owns the played tiles)
+playMove :: Context -> Move -> Context
+playMove ctx@(Context board bag racks currentPlayer) move = Context board' bag' racks' currentPlayer'
+  where
+    board' = foldl (\b (c, t) -> Map.insert c t b) board move
+    (newTiles, bag') = splitAt (length move) bag
+    currentPlayer' = (currentPlayer + 1) `mod` (length racks)
+    racks' = racks // [(currentPlayer, newTiles ++ (racks ! currentPlayer \\ map snd move))]
+
+
 handleTileClick :: Coord -> Context -> Context
-handleTileClick coord ctx@(Context board bag racks currentPlayer) =
-  let
+handleTileClick coord ctx@(Context board bag racks currentPlayer) = playMove ctx bestMove
+  where
     r = racks ! currentPlayer
-    t = head r
-  in
-    traceShow (racks, currentPlayer, t) $
-    traceShow (legalMoves board r) $
-    if playable board coord t then
-      let
-        board' = Map.insert coord t board
-        bag' = tail bag
-        racks' = racks // [(currentPlayer, head bag : tail r)]
-        currentPlayer' = (currentPlayer + 1) `mod` (length racks)
-      in
-        Context board' bag' racks' currentPlayer'
-    else
-      ctx
+    bestMove = traceShowId $ maximumOn (\x -> traceShowId $ scoreFor board x) $ legalMoves board r
 
 -- Drawing functions
 drawContext :: Context -> Picture
@@ -159,7 +181,7 @@ showTile t
 
 
 main = do
-  setStdGen $ mkStdGen 0
+  setStdGen $ mkStdGen 3
   bag <- shuffleM initBag
   play
     (InWindow "Triolet" (150, 150) (0, 0))
