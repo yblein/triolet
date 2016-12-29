@@ -9,7 +9,8 @@ import Data.Map (Map)
 import qualified Data.Map as Map
 import Data.List
 import Control.Monad.State
-import Data.Array.IArray
+import Data.Sequence (Seq)
+import qualified Data.Sequence as Seq
 import Data.Tuple
 import Data.Ord
 
@@ -25,18 +26,18 @@ rackSize = 3
 tilesCount = [9, 9, 8, 8, 7, 8, 6, 6, 4, 4, 3, 3, 2, 2, 1, 1]
 
 type Tile = Int
-
 type Coord = (Int, Int)
 type Board = Map Coord Tile
 type Bag = [Tile]
 type Rack = [Tile]
 type Move = [(Coord, Tile)]
 
-data Context = Context
+data GameState = GameState
   { board :: Board
   , bag :: Bag
-  , racks :: Array Int Rack
+  , racks :: Seq Rack
   , currentPlayer :: Int
+  , isOver :: Bool
   }
 
 initBag :: Bag
@@ -45,11 +46,9 @@ initBag = concat $ zipWith replicate tilesCount [0..]
 initRacks :: State Bag [Rack]
 initRacks = replicateM nbPlayers $ state $ splitAt rackSize
 
-initContext :: Bag -> Context
-initContext bag = Context Map.empty bag' racksArray 0
-  where
-    (racks, bag') = runState initRacks bag
-    racksArray = listArray (0, nbPlayers - 1) racks
+initContext :: Bag -> GameState
+initContext bag = GameState Map.empty bag' (Seq.fromList racks) 0 False
+  where (racks, bag') = runState initRacks bag
 
 powerset :: [a] -> [[a]]
 powerset = filterM $ const [True, False]
@@ -59,7 +58,7 @@ permsSumLE15 = nub . concatMap permutations . filter valid . init . powerset
   where valid l = sum l <= trioSum && ((length l == trioCount) `implies` (sum l == trioSum))
 
 legalMoves :: Board -> Rack -> [Move]
-legalMoves board rack = concatMap (rec board []) $ traceShowId $ permsSumLE15 rack
+legalMoves board rack = concatMap (rec board []) $ permsSumLE15 rack
   where
     rec board move [] = [move]
     rec board move (t:ts) = concatMap (\c -> rec (Map.insert c t board) ((c, t):move) ts) validCoords
@@ -136,33 +135,36 @@ scoreFor board move =
             s' = s + (if nb > 1 then t else 0)
             nb = 1 + fdir c board' (const 1)
 
-handleEvent :: Event -> Context -> Context
+handleEvent :: Event -> GameState -> GameState
 handleEvent (EventKey (MouseButton LeftButton) Up _ pos) ctx =
   handleTileClick (posToCoord pos) ctx
     where
       posToCoord (x, y) = (7 + (truncate (x+25)) `div` 50, 7 + (truncate (y+25)) `div` 50)
 handleEvent _ ctx = ctx
 
-maximumOn f = fst . maximumBy (comparing snd) . map (\x -> (x, f x))
+maximumOn f = fst . maximumBy (comparing snd) . map (id &&& f)
 
--- assume that the move is valid (i.e. respect game constraints and the player owns the played tiles)
-playMove :: Context -> Move -> Context
-playMove ctx@(Context board bag racks currentPlayer) move = Context board' bag' racks' currentPlayer'
+-- assume that the move is valid (i.e. it respects the game constraints and the player owns the played tiles)
+playMove :: GameState -> Move -> GameState
+playMove ctx@(GameState _ _ _ _ True) _ = ctx
+playMove (GameState board bag racks currentPlayer False) move = GameState board' bag' racks' currentPlayer' isOver
   where
     board' = foldl (\b (c, t) -> Map.insert c t b) board move
     (newTiles, bag') = splitAt (length move) bag
     currentPlayer' = (currentPlayer + 1) `mod` (length racks)
-    racks' = racks // [(currentPlayer, newTiles ++ (racks ! currentPlayer \\ map snd move))]
+    racks' = Seq.update currentPlayer rack' racks
+    rack' = newTiles ++ (racks `Seq.index` currentPlayer \\ map snd move)
+    isOver = null rack'
 
-
-handleTileClick :: Coord -> Context -> Context
-handleTileClick coord ctx@(Context board bag racks currentPlayer) =
-  traceShow (scoreFor board bestMove, bestMove) $ playMove ctx bestMove
-  where bestMove = maximumOn (scoreFor board) $ legalMoves board $ racks ! currentPlayer
+handleTileClick :: Coord -> GameState -> GameState
+handleTileClick _ ctx@(GameState _ _ racks _ True) = traceShow racks $ ctx
+handleTileClick _ ctx@(GameState board _ racks currentPlayer False) =
+  traceShow (racks, scoreFor board bestMove, bestMove) $ playMove ctx bestMove
+  where bestMove = maximumOn (scoreFor board) $ legalMoves board $ racks `Seq.index` currentPlayer
 
 -- Drawing functions
-drawContext :: Context -> Picture
-drawContext (Context board _ _ _) = Scale 50 50 $ Translate (-7.5) (-7.5) $ Pictures [drawGrid, drawTiles board]
+drawContext :: GameState -> Picture
+drawContext (GameState board _ _ _ _) = Scale 50 50 $ Translate (-7.5) (-7.5) $ Pictures [drawGrid, drawTiles board]
 
 drawGrid = Pictures [Translate 0 15 $ Rotate 90 $ drawLines, drawLines]
   where drawLines = Pictures $ map (\x -> Line [(x, 0), (x, 15)]) [0..15]
