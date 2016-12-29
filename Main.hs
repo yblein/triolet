@@ -59,18 +59,12 @@ permsSumLE15 = nub . concatMap permutations . filter valid . init . powerset
   where valid l = sum l <= trioSum && ((length l == trioCount) `implies` (sum l == trioSum))
 
 legalMoves :: Board -> Rack -> [Move]
-legalMoves board rack = traceShowId $ filter (validMove board) allMoves
+legalMoves board rack = concatMap (rec board []) $ traceShowId $ permsSumLE15 rack
   where
+    rec board move [] = [move]
+    rec board move (t:ts) = concatMap (\c -> rec (Map.insert c t board) ((c, t):move) ts) validCoords
+      where validCoords = filter (\c -> playable board c t && aligned board (c:(map fst move))) allCoords
     allCoords = liftM2 (,) [0..boardsize - 1] [0..boardsize - 1]
-    allMoves = concatMap movesFor $ traceShowId $ permsSumLE15 rack
-    movesFor perm = map (\xs -> zip xs perm) $ replicateM (length perm) allCoords
-
--- TODO: play around an existing tile
-validMove :: Board -> Move -> Bool
-validMove board move = aligned board (map fst move) && validTiles board move
-  where
-    validTiles board [] = True
-    validTiles board ((c, t):xs) = playable board c t && validTiles (Map.insert c t board) xs
 
 aligned :: Board -> [Coord] -> Bool
 aligned board coords = any aligned' [coords, map swap coords]
@@ -162,10 +156,9 @@ playMove ctx@(Context board bag racks currentPlayer) move = Context board' bag' 
 
 
 handleTileClick :: Coord -> Context -> Context
-handleTileClick coord ctx@(Context board bag racks currentPlayer) = playMove ctx bestMove
-  where
-    r = racks ! currentPlayer
-    bestMove = traceShowId $ maximumOn (\x -> traceShowId $ scoreFor board x) $ legalMoves board r
+handleTileClick coord ctx@(Context board bag racks currentPlayer) =
+  traceShow (scoreFor board bestMove, bestMove) $ playMove ctx bestMove
+  where bestMove = maximumOn (scoreFor board) $ legalMoves board $ racks ! currentPlayer
 
 -- Drawing functions
 drawContext :: Context -> Picture
