@@ -19,7 +19,7 @@ trioSum = 15
 trioCount = 3
 trioBonus = 15
 trioletBonus = 0
-nbPlayers = 4
+nbPlayers = 3
 rackSize = 3
 
 --tilesCount = [9, 9, 8, 8, 7, 8, 6, 6, 4, 4, 3, 3, 2, 2, 1, 1, 2]
@@ -119,7 +119,7 @@ implies a b = not a || b
 
 scoreFor :: Board -> Move -> Int
 scoreFor board [] = 0
-scoreFor board move = baseScore + if length move == 3 then trioletBonus else 0
+scoreFor board move = baseScore + specials + if length move == 3 then trioletBonus else 0
   where
     baseScore =
       if onlyFirst then
@@ -128,14 +128,29 @@ scoreFor board move = baseScore + if length move == 3 then trioletBonus else 0
         head (sums alignVer) + sum (sums alignHor)
       else
         head (sums alignHor) + sum (sums alignVer)
+
     board' = foldl (\b (c, t) -> Map.insert c t b) board move
     onlyFirst = Map.size board' == 1
     coords = map fst move
+
     sums fdir = map (sum' fdir) move
-    sum' fdir (c, t) = s' + (if s' == trioSum && nb == trioCount then trioBonus else 0)
+    sum' fdir (c, t) = s' + if s' == trioSum && nb == trioCount then trioBonus else 0
       where s = fdir c board' id
             s' = s + (if nb > 1 then t else 0)
             nb = 1 + fdir c board' (const 1)
+
+    specials = sumSpecial isDouble 2 + sumSpecial isTripple 3
+    sumSpecial p mult =
+      case filter (p . fst) move of
+        [] -> 0
+        (c@(x, y), t):_ -> (mult - 1) * if trio then trioSum * 2 else t
+          where
+            trio = (sumH == trioSum && nbH == trioCount) || (sumV == trioSum && nbV == trioCount)
+            nbH = alignHor c board' (const 1) + 1
+            nbV = alignVer c board' (const 1) + 1
+            sumH = alignHor c board' id + t
+            sumV = alignVer c board' id + t
+
 
 isDouble :: Coord -> Bool
 isDouble (x, y) = (y == m && dx == 4) || (x == m && dy == 4) || (dx == 3 && dy == 3) || (x, y) == (m, m)
@@ -202,7 +217,7 @@ showTile t
 
 
 main = do
-  setStdGen $ mkStdGen 3
+  setStdGen $ mkStdGen 1
   bag <- shuffleM initBag
   play
     (InWindow "Triolet" (150, 150) (0, 0))
