@@ -58,7 +58,9 @@ legalMoves board rack = concatMap (rec board []) $ permsSumLE15 rack
   where
     rec board move [] = [move]
     rec board move (t:ts) = concatMap (\c -> rec (Map.insert c t board) ((c, t):move) ts) validCoords
-      where validCoords = filter (\c -> playable board c t && aligned board (c:(map fst move))) allCoords
+      where validCoords = filter (\c -> playable board c t && aligned board (c:(map fst move))) coords
+            coords = if null move then allCoords else nearCoords
+            nearCoords = liftM2 (,) [x-2..x+2] [y-2..y+2] where ((x, y), _) = head move
 
 allCoords :: [Coord]
 allCoords = liftM2 (,) [0..boardSize - 1] [0..boardSize - 1]
