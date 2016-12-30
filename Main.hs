@@ -7,6 +7,7 @@ import Control.Monad.Trans (liftIO)
 
 import Control.Monad
 import Data.IORef
+import Data.Foldable
 import System.Random
 import qualified Data.Map as Map
 import qualified Data.Sequence as Seq
@@ -15,9 +16,8 @@ import Debug.Trace
 import Game
 import Utils
 
-playAI gs@(GameState _ _ players _ True) = traceShow players $ gs
-playAI gs@(GameState board _ players currentPlayer False) =
-  traceShow (players, scoreFor board bestMove, bestMove) $ playMove gs bestMove
+playAI gs@(GameState _ _ players _ True) = gs
+playAI gs@(GameState board _ players currentPlayer False) = playMove gs bestMove
   where bestMove = maximumOn (scoreFor board) $ legalMoves board $ snd $ Seq.index players currentPlayer
 
 {-
@@ -64,8 +64,10 @@ boardWidth = 600
 tileWidth = boardWidth / fromIntegral boardSize
 
 drawGame :: GameState -> Render ()
-drawGame (GameState board _ _ _ _) = do
+drawGame (GameState board _ players currentPlayer isOver) = do
   drawBoard board
+  translate (boardWidth / 2 - tileWidth / 2) (boardWidth / 2 - tileWidth / 2)
+  mapM_ drawPlayer $ zip (map (\i -> (i, i == currentPlayer && not isOver)) [0..]) $ toList players
 
 drawBoard :: Board -> Render ()
 drawBoard board = do
@@ -98,20 +100,30 @@ drawBoard board = do
   setFontSize 22
   mapM_ drawTile $ Map.assocs board
 
-line :: Double -> Double -> Double -> Double -> Render ()
-line a b c d = moveTo a b >> lineTo c d
-
 drawTile :: (Coord, Int) -> Render ()
 drawTile ((x, y), t) = do
   let w = tileWidth / 2 - 2
   let (x', y') = (fromIntegral x * tileWidth + tileWidth / 2, fromIntegral y * tileWidth + tileWidth / 2)
   colorTile
-  drawRounded (x' - w) (x' + w) (y' - w) (y' + w) 4
+  drawRoundedRect (x' - w) (x' + w) (y' - w) (y' + w) 4
   colorBlack
   drawText x' y' (show t)
 
-drawRounded :: Double -> Double -> Double -> Double -> Double -> Render ()
-drawRounded left right top bottom radius = do
+drawPlayer :: ((Int, Bool), Player) -> Render ()
+drawPlayer ((i, curr), (score, rack)) = do
+  save
+  rotate $ fromIntegral i * pi / 2
+  translate 0 $ 3 * boardWidth / 5
+  mapM_ drawTile $ zip (zip [-1, 0, 1] $ repeat 0) rack
+  drawText (tileWidth * 5) (tileWidth / 2) $ show score
+  when curr $ drawText (tileWidth * 4) (tileWidth / 2) "*"
+  restore
+
+line :: Double -> Double -> Double -> Double -> Render ()
+line a b c d = moveTo a b >> lineTo c d
+
+drawRoundedRect :: Double -> Double -> Double -> Double -> Double -> Render ()
+drawRoundedRect left right top bottom radius = do
   let (a, b, c, d) = (left, right, top, bottom)
   newPath
   arc (a + radius) (c + radius) radius (2*(pi/2)) (3*(pi/2))
