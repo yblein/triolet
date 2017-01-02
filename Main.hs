@@ -21,7 +21,10 @@ playAI gs@(GameState board _ players (Just currentPlayer)) = gs'
   where
     gs' = if not (null currLegalMoves) then playMove gs bestMove else playChangeAll gs
     currLegalMoves = legalMoves board $ snd $ Seq.index players currentPlayer
-    bestMove = maximumOn (scoreFor board) $ currLegalMoves
+    bestMove = maximumOn (evaluate board) $ currLegalMoves
+
+evaluate :: Board -> Move -> Int
+evaluate board move = scoreFor board move + if any isBis $ map fst move then 30 else 0
 
 {-
 handleEvent :: Event -> GameState -> GameState
