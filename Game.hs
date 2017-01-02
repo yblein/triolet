@@ -35,8 +35,7 @@ data GameState = GameState
   { board :: Board
   , bag :: Bag
   , players :: Seq Player
-  , currentPlayer :: Int
-  , isOver :: Bool
+  , currentPlayer :: Maybe Int
   }
 
 initBag :: IO Bag
@@ -46,7 +45,7 @@ initRacks :: State Bag [Rack]
 initRacks = replicateM nbPlayers $ state $ splitAt rackSize
 
 initContext :: Bag -> GameState
-initContext bag = GameState Map.empty bag' (Seq.fromList $ zip (repeat 0) racks) 0 False
+initContext bag = GameState Map.empty bag' (Seq.fromList $ zip (repeat 0) racks) (Just 0)
   where (racks, bag') = runState initRacks bag
 
 permsSumLE15 :: Rack -> [[Tile]]
@@ -167,16 +166,17 @@ midAndOffsets (x, y) = (m, dx, dy)
 
 -- assume that the move is valid (i.e. it respects the game constraints and the player owns the played tiles)
 playMove :: GameState -> Move -> GameState
-playMove gs@(GameState _ _ _ _ True) _ = gs
-playMove (GameState board bag players currentPlayer False) move = gameState'
+playMove gs@(GameState _ _ _ Nothing) _ = gs
+playMove (GameState board bag players (Just currentPlayer)) move = gameState'
   where
     board' = foldl (\b (c, t) -> Map.insert c t b) board move
     (score, rack) = Seq.index players currentPlayer
     hasBis = any isBis $ map fst move
     nextPlayer = if hasBis then currentPlayer else (currentPlayer + 1) `mod` (length players)
+    currentPlayer' = if isOver then Nothing else Just nextPlayer
     (newTiles, bag') = splitAt (length move) bag
     rack' = newTiles ++ (rack \\ map snd move)
     score' = score + scoreFor board' move + if isOver then sum $ concatMap snd players' else 0
     players' = Seq.update currentPlayer (score', rack') players
     isOver = null rack'
-    gameState' = GameState board' bag' players' nextPlayer isOver
+    gameState' = GameState board' bag' players' currentPlayer'

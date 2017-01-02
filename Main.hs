@@ -16,8 +16,8 @@ import Debug.Trace
 import Game
 import Utils
 
-playAI gs@(GameState _ _ players _ True) = gs
-playAI gs@(GameState board _ players currentPlayer False) = playMove gs bestMove
+playAI gs@(GameState _ _ players Nothing) = gs
+playAI gs@(GameState board _ players (Just currentPlayer)) = playMove gs bestMove
   where bestMove = maximumOn (scoreFor board) $ legalMoves board $ snd $ Seq.index players currentPlayer
 
 {-
@@ -64,10 +64,10 @@ boardWidth = 600
 tileWidth = boardWidth / fromIntegral boardSize
 
 drawGame :: GameState -> Render ()
-drawGame (GameState board _ players currentPlayer isOver) = do
+drawGame (GameState board _ players currentPlayer) = do
   drawBoard board
   translate (boardWidth / 2 - tileWidth / 2) (boardWidth / 2 - tileWidth / 2)
-  mapM_ drawPlayer $ zip (map (\i -> (i, i == currentPlayer && not isOver)) [0..]) $ toList players
+  mapM_ drawPlayer $ zip (map (\i -> (i, Just i == currentPlayer)) [0..]) $ toList players
 
 drawBoard :: Board -> Render ()
 drawBoard board = do
