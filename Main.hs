@@ -65,12 +65,15 @@ tileWidth = boardWidth / fromIntegral boardSize
 
 drawGame :: GameState -> Render ()
 drawGame (GameState board _ players currentPlayer) = do
+  selectFontFace "Sans" FontSlantNormal FontWeightBold
+  setFontSize 22
+
   drawBoard board
-  translate (boardWidth / 2 - tileWidth / 2) (boardWidth / 2 - tileWidth / 2)
   mapM_ drawPlayer $ zip (map (\i -> (i, Just i == currentPlayer)) [0..]) $ toList players
 
 drawBoard :: Board -> Render ()
 drawBoard board = do
+  save
   translate (- boardWidth / 2) (- boardWidth / 2)
   let tw = tileWidth
 
@@ -96,9 +99,9 @@ drawBoard board = do
   stroke
 
   -- tiles
-  selectFontFace "Sans" FontSlantNormal FontWeightBold
-  setFontSize 22
   mapM_ drawTile $ Map.assocs board
+
+  restore
 
 drawTile :: (Coord, Int) -> Render ()
 drawTile ((x, y), t) = do
@@ -113,7 +116,7 @@ drawPlayer :: ((Int, Bool), Player) -> Render ()
 drawPlayer ((i, curr), (score, rack)) = do
   save
   rotate $ fromIntegral i * pi / 2
-  translate 0 $ 3 * boardWidth / 5
+  translate (- tileWidth / 2) $ 3 * boardWidth / 5
   mapM_ drawTile $ zip (zip [-1, 0, 1] $ repeat 0) rack
   drawText (tileWidth * 5) (tileWidth / 2) $ show score
   when curr $ drawText (tileWidth * 4) (tileWidth / 2) "*"
