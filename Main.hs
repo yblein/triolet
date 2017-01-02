@@ -17,8 +17,11 @@ import Game
 import Utils
 
 playAI gs@(GameState _ _ players Nothing) = gs
-playAI gs@(GameState board _ players (Just currentPlayer)) = playMove gs bestMove
-  where bestMove = maximumOn (scoreFor board) $ legalMoves board $ snd $ Seq.index players currentPlayer
+playAI gs@(GameState board _ players (Just currentPlayer)) = gs'
+  where
+    gs' = if not (null currLegalMoves) then playMove gs bestMove else playChangeAll gs
+    currLegalMoves = legalMoves board $ snd $ Seq.index players currentPlayer
+    bestMove = maximumOn (scoreFor board) $ currLegalMoves
 
 {-
 handleEvent :: Event -> GameState -> GameState
