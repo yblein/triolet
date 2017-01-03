@@ -18,7 +18,6 @@ trioSum = 15
 trioCount = 3
 trioBonus = 15
 trioletBonus = 0
-nbPlayers = 3
 rackSize = 3
 
 --tilesCount = [9, 9, 8, 8, 7, 8, 6, 6, 4, 4, 3, 3, 2, 2, 1, 1, 2]
@@ -43,13 +42,13 @@ data GameState = GameState
 initBag :: Rand StdGen Bag
 initBag = shuffleM $ concat $ zipWith replicate tilesCount [0..]
 
-initRacks :: State Bag [Rack]
-initRacks = replicateM nbPlayers $ state $ splitAt rackSize
+initRacks :: Int -> State Bag [Rack]
+initRacks nbPlayers = replicateM nbPlayers $ state $ splitAt rackSize
 
-initGame :: StdGen -> GameState
-initGame rng = GameState Map.empty bag' (Seq.fromList $ zip (repeat 0) racks) (Just 0) rng'
+initGame :: Int -> StdGen -> GameState
+initGame nbPlayers rng = GameState Map.empty bag' (Seq.fromList $ zip (repeat 0) racks) (Just 0) rng'
   where (bag, rng') = runRand initBag rng
-        (racks, bag') = runState initRacks bag
+        (racks, bag') = runState (initRacks nbPlayers) bag
 
 permsSumLE15 :: Rack -> [[Tile]]
 permsSumLE15 = nub . concatMap permutations . filter valid . init . powerset
@@ -95,6 +94,7 @@ playable board coord@(x, y) tile =
     sumAlignLEMax = sumH <= trioSum && sumV <= trioSum
     trio = ((nbH == trioCount) `implies` (sumH == trioSum)) && ((nbV == trioCount) `implies` (sumV == trioSum))
     adj = nbH >= 2 || nbV >= 2
+    -- TODO; the rule for 2-wide squares is not sufficient if the move has more tiles
     firstSquares = (Map.size board == 3) `implies` (not $ nbH == 2 && nbV == 2)
                 -- TODO: this is not sufficient (see example #5)
                 && (Map.size board == 8) `implies` (not $ nbH == 3 && nbV == 3)

@@ -1,5 +1,4 @@
---import Graphics.Gloss
---import Graphics.Gloss.Interface.Pure.Game
+{-# LANGUAGE DeriveDataTypeable #-}
 
 import Graphics.UI.Gtk hiding (rectangle) -- (fill, background)
 import Graphics.Rendering.Cairo
@@ -11,6 +10,7 @@ import Data.Foldable
 import System.Random
 import qualified Data.Map as Map
 import qualified Data.Sequence as Seq
+import System.Console.CmdArgs hiding ((:=))
 import Debug.Trace
 
 import Game
@@ -33,9 +33,19 @@ handleEvent (EventKey (MouseButton LeftButton) Up _ pos) gs = handleTileClick (p
 handleEvent _ gs = gs
 -}
 
+data Options = Options { numberPlayers :: Int } deriving (Data, Typeable)
+
+defOptions =
+  Options { numberPlayers = 4 &= typ "INT" }
+    &= program "triolet"
+    &= summary "Implementation of the Triolet board game"
+
 main = do
+  options <- cmdArgs defOptions
+  unless (numberPlayers options `elem` [2..4]) $ fail "the number of players must be in [2..4]"
+
   -- setStdGen $ mkStdGen 4
-  game <- newStdGen >>= (newIORef . initGame)
+  game <- newStdGen >>= (newIORef . initGame (numberPlayers options))
 
   initGUI
   window <- windowNew
