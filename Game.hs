@@ -188,9 +188,9 @@ playChangeAll :: GameState -> GameState
 playChangeAll gs@(GameState _ _ _ Nothing _) = gs
 playChangeAll gs@(GameState board bag players (Just currentPlayer) rng) = gameState'
   where
-    -- TODO; insert at random positions in the bag
-    gameState' = GameState board (bag' ++ rack) players' currentPlayer' rng
+    gameState' = GameState board bag'' players' currentPlayer' rng'
     (score, rack) = Seq.index players currentPlayer
     currentPlayer' = Just $ (currentPlayer + 1) `mod` (length players)
     (rack', bag') = splitAt 3 bag
     players' = Seq.update currentPlayer (score, rack') players
+    (bag'', rng') = runRand (shuffleM $ rack ++ bag') rng
