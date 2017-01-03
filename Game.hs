@@ -1,6 +1,7 @@
 module Game where
 
 import System.Random.Shuffle
+import Control.Monad.Random
 import Data.Map (Map)
 import qualified Data.Map as Map
 import Control.Monad.State
@@ -36,17 +37,19 @@ data GameState = GameState
   , bag :: Bag
   , players :: Seq Player
   , currentPlayer :: Maybe Int
+  , rng :: StdGen
   }
 
-initBag :: IO Bag
+initBag :: Rand StdGen Bag
 initBag = shuffleM $ concat $ zipWith replicate tilesCount [0..]
 
 initRacks :: State Bag [Rack]
 initRacks = replicateM nbPlayers $ state $ splitAt rackSize
 
-initContext :: Bag -> GameState
-initContext bag = GameState Map.empty bag' (Seq.fromList $ zip (repeat 0) racks) (Just 0)
-  where (racks, bag') = runState initRacks bag
+initGame :: StdGen -> GameState
+initGame rng = GameState Map.empty bag' (Seq.fromList $ zip (repeat 0) racks) (Just 0) rng'
+  where (bag, rng') = runRand initBag rng
+        (racks, bag') = runState initRacks bag
 
 permsSumLE15 :: Rack -> [[Tile]]
 permsSumLE15 = nub . concatMap permutations . filter valid . init . powerset
@@ -166,8 +169,8 @@ midAndOffsets (x, y) = (m, dx, dy)
 
 -- assume that the move is valid (i.e. it respects the game constraints and the player owns the played tiles)
 playMove :: GameState -> Move -> GameState
-playMove gs@(GameState _ _ _ Nothing) _ = gs
-playMove (GameState board bag players (Just currentPlayer)) move = gameState'
+playMove gs@(GameState _ _ _ Nothing _) _ = gs
+playMove (GameState board bag players (Just currentPlayer) rng) move = gameState'
   where
     board' = foldl (\b (c, t) -> Map.insert c t b) board move
     (score, rack) = Seq.index players currentPlayer
@@ -179,14 +182,14 @@ playMove (GameState board bag players (Just currentPlayer)) move = gameState'
     score' = score + scoreFor board' move + if isOver then sum $ concatMap snd players' else 0
     players' = Seq.update currentPlayer (score', rack') players
     isOver = null rack'
-    gameState' = GameState board' bag' players' currentPlayer'
+    gameState' = GameState board' bag' players' currentPlayer' rng
 
 playChangeAll :: GameState -> GameState
-playChangeAll gs@(GameState _ _ _ Nothing) = gs
-playChangeAll gs@(GameState board bag players (Just currentPlayer)) = gameState'
+playChangeAll gs@(GameState _ _ _ Nothing _) = gs
+playChangeAll gs@(GameState board bag players (Just currentPlayer) rng) = gameState'
   where
     -- TODO; insert at random positions in the bag
-    gameState' = GameState board (bag' ++ rack) players' currentPlayer'
+    gameState' = GameState board (bag' ++ rack) players' currentPlayer' rng
     (score, rack) = Seq.index players currentPlayer
     currentPlayer' = Just $ (currentPlayer + 1) `mod` (length players)
     (rack', bag') = splitAt 3 bag

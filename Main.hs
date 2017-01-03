@@ -16,8 +16,8 @@ import Debug.Trace
 import Game
 import Utils
 
-playAI gs@(GameState _ _ players Nothing) = gs
-playAI gs@(GameState board _ players (Just currentPlayer)) = gs'
+playAI gs@(GameState _ _ players Nothing _) = gs
+playAI gs@(GameState board _ players (Just currentPlayer) _) = gs'
   where
     gs' = if not (null currLegalMoves) then playMove gs bestMove else playChangeAll gs
     currLegalMoves = legalMoves board $ snd $ Seq.index players currentPlayer
@@ -34,8 +34,8 @@ handleEvent _ gs = gs
 -}
 
 main = do
-  setStdGen $ mkStdGen 4
-  game <- initBag >>= (newIORef . initContext)
+  -- setStdGen $ mkStdGen 4
+  game <- newStdGen >>= (newIORef . initGame)
 
   initGUI
   window <- windowNew
@@ -70,7 +70,7 @@ boardWidth = 600
 tileWidth = boardWidth / fromIntegral boardSize
 
 drawGame :: GameState -> Render ()
-drawGame (GameState board _ players currentPlayer) = do
+drawGame (GameState board _ players currentPlayer _) = do
   selectFontFace "Sans" FontSlantNormal FontWeightBold
   setFontSize 22
 
