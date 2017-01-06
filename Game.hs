@@ -89,11 +89,13 @@ playable board coord@(x, y) tile =
   where
     empty = not $ Map.member coord board
     firstTile = coord == (boardSize `div` 2, boardSize `div` 2)
-    nbH = alignHor coord board (const 1) + 1
-    nbV = alignVer coord board (const 1) + 1
+    hs = alignHor coord board
+    vs = alignVer coord board
+    nbH = length hs + 1
+    nbV = length vs + 1
     nbAlignLEMax = nbH <= trioCount && nbV <= trioCount
-    sumH = alignHor coord board id + tile
-    sumV = alignVer coord board id + tile
+    sumH = sum hs + tile
+    sumV = sum vs + tile
     sumAlignLEMax = sumH <= trioSum && sumV <= trioSum
     trio = ((nbH == trioCount) `implies` (sumH == trioSum)) && ((nbV == trioCount) `implies` (sumV == trioSum))
     adj = nbH >= 2 || nbV >= 2
@@ -102,19 +104,19 @@ playable board coord@(x, y) tile =
                 -- TODO: this is not sufficient (see example #5)
                 && (Map.size board == 8) `implies` (not $ nbH == 3 && nbV == 3)
 
-alignHor :: Coord -> Board -> (Tile -> Int) -> Int
-alignHor c b cost = sum $ map (alignDir c b cost . first) [pred, succ]
+alignHor :: Coord -> Board -> [Int]
+alignHor c b = (alignDir c b $ first succ) ++ (alignDir c b $ first pred)
 
-alignVer :: Coord -> Board -> (Tile -> Int) -> Int
-alignVer c b cost = sum $ map (alignDir c b cost . second) [pred, succ]
+alignVer :: Coord -> Board -> [Int]
+alignVer c b = (alignDir c b $ second pred) ++ (alignDir c b $ second succ)
 
-alignDir :: Coord -> Board -> (Tile -> Int) -> (Coord -> Coord) -> Int
-alignDir coord board cost next = sumAlignDir' (next coord)
+alignDir :: Coord -> Board -> (Coord -> Coord) -> [Int]
+alignDir coord board next = alignDir' (next coord)
   where
-    sumAlignDir' coord =
+    alignDir' coord =
       case Map.lookup coord board of
-        Just t -> (cost t) + (sumAlignDir' (next coord))
-        Nothing -> 0
+        Just t -> t:(alignDir' (next coord))
+        Nothing -> []
 
 scoreFor :: Board -> Move -> Int
 scoreFor board [] = 0
@@ -134,9 +136,10 @@ scoreFor board move = baseScore + specials + if length move == 3 then trioletBon
 
     sums fdir = map (sum' fdir) move
     sum' fdir (c, t) = s' + if s' == trioSum && nb == trioCount then trioBonus else 0
-      where s = fdir c board' id
+      where ts = fdir c board'
+            s = sum ts
             s' = s + if nb > 1 then t else 0
-            nb = 1 + fdir c board' (const 1)
+            nb = 1 + length ts
 
     specials = sumSpecial isDouble 2 + sumSpecial isTripple 3
     sumSpecial p mult =
@@ -145,10 +148,12 @@ scoreFor board move = baseScore + specials + if length move == 3 then trioletBon
         (c@(x, y), t):_ -> (mult - 1) * if trio then trioSum * 2 else t
           where
             trio = (sumH == trioSum && nbH == trioCount) || (sumV == trioSum && nbV == trioCount)
-            nbH = alignHor c board' (const 1) + 1
-            nbV = alignVer c board' (const 1) + 1
-            sumH = alignHor c board' id + t
-            sumV = alignVer c board' id + t
+            hs = alignHor c board'
+            vs = alignVer c board'
+            nbH = length hs + 1
+            nbV = length vs + 1
+            sumH = sum hs + t
+            sumV = sum vs + t
 
 
 isDouble :: Coord -> Bool
