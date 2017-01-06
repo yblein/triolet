@@ -9,7 +9,8 @@ powerset :: [a] -> [[a]]
 powerset = filterM $ const [True, False]
 
 allEq :: Eq a => [a] -> Bool
-allEq xs = all (== head xs) (tail xs)
+allEq [] = True
+allEq (x:xs) = all (== x) xs
 
 implies :: Bool -> Bool -> Bool
 implies a b = not a || b
