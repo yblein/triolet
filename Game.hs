@@ -2,8 +2,8 @@ module Game where
 
 import System.Random.Shuffle
 import Control.Monad.Random
-import Data.Map (Map)
-import qualified Data.Map as Map
+import Data.HashMap.Strict (HashMap)
+import qualified Data.HashMap.Strict as Map
 import Control.Monad.State
 import Data.Sequence (Seq)
 import qualified Data.Sequence as Seq
@@ -25,7 +25,7 @@ tilesCount = [9, 9, 8, 8, 7, 8, 6, 6, 4, 4, 3, 3, 2, 2, 1, 1]
 
 type Tile = Int
 type Coord = (Int, Int)
-type Board = Map Coord Tile
+type Board = HashMap Coord Tile
 type Bag = [Tile]
 type Rack = [Tile]
 type Move = [(Coord, Tile)]
@@ -84,7 +84,7 @@ playable :: Board -> Coord -> Tile -> Bool
 playable board coord@(x, y) tile =
   inBoard coord && empty && (firstTile || (adj && nbAlignLEMax && sumAlignLEMax && trio && firstSquares))
   where
-    empty = Map.notMember coord board
+    empty = not $ Map.member coord board
     firstTile = coord == (boardSize `div` 2, boardSize `div` 2)
     nbH = alignHor coord board (const 1) + 1
     nbV = alignVer coord board (const 1) + 1

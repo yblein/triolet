@@ -8,7 +8,7 @@ import Control.Monad
 import Data.IORef
 import Data.Foldable
 import System.Random
-import qualified Data.Map as Map
+import qualified Data.HashMap.Strict as Map
 import qualified Data.Sequence as Seq
 import System.Console.CmdArgs hiding ((:=))
 import Debug.Trace
@@ -115,7 +115,7 @@ drawBoard board = do
   stroke
 
   -- tiles
-  mapM_ drawTile $ Map.assocs board
+  mapM_ drawTile $ Map.toList board
 
   restore
 
