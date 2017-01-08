@@ -9,12 +9,12 @@ import qualified Data.HashMap.Strict as Map
 import Control.Monad.State
 import Data.Sequence (Seq)
 import qualified Data.Sequence as Seq
-import Data.Tuple
 import Data.List
 import Control.Arrow
 
 import Utils
 
+boardSize, trioSum, trioCount, trioBonus, trioletBonus, rackSize :: Int
 boardSize = 15
 trioSum = 15
 trioCount = 3
@@ -22,8 +22,8 @@ trioBonus = 15
 trioletBonus = 0
 rackSize = 3
 
---tilesCount = [9, 9, 8, 8, 7, 8, 6, 6, 4, 4, 3, 3, 2, 2, 1, 1, 2]
-tilesCount = [9, 9, 8, 8, 7, 8, 6, 6, 4, 4, 3, 3, 2, 2, 1, 1]
+tilesCount :: [Int]
+tilesCount = [9, 9, 8, 8, 7, 8, 6, 6, 4, 4, 3, 3, 2, 2, 1, 1] -- and 2 jokers
 
 type Tile = Int
 type Coord = (Int, Int)
@@ -59,9 +59,9 @@ permsSumLE15 = nub . concatMap permutations . filter valid . init . powerset
 legalMoves :: Board -> Rack -> [Move]
 legalMoves board rack = concatMap (rec board []) $ permsSumLE15 rack
   where
-    rec board move [] = [move]
+    rec _     move [] = [move]
     rec board move (t:ts) = concatMap (\c -> rec (Map.insert c t board) ((c, t):move) ts) validCoords
-      where validCoords = filter (\c -> playable board c t && aligned board (c:(map fst move))) coords
+      where validCoords = filter (\c -> playable board c t && aligned board (c:map fst move)) coords
             coords = case move of
               [] -> allCoords
               ((x, y), _):_ -> map (x,) [y-2..y+2] ++ map (,y) [x-2..x+2]
@@ -84,7 +84,7 @@ inBoard :: Coord -> Bool
 inBoard (x, y) = x >= 0 && x < boardSize && y >= 0 && y < boardSize
 
 playable :: Board -> Coord -> Tile -> Bool
-playable board coord@(x, y) tile =
+playable board coord tile =
   inBoard coord && empty && (firstTile || (adj && nbAlignLEMax && sumAlignLEMax && trio && firstSquares))
   where
     empty = not $ Map.member coord board
@@ -100,35 +100,32 @@ playable board coord@(x, y) tile =
     trio = ((nbH == trioCount) `implies` (sumH == trioSum)) && ((nbV == trioCount) `implies` (sumV == trioSum))
     adj = nbH >= 2 || nbV >= 2
     -- TODO; the rule for 2-wide squares is not sufficient if the move has more tiles
-    firstSquares = (Map.size board == 3) `implies` (not $ nbH == 2 && nbV == 2)
+    firstSquares = (Map.size board == 3) `implies` not (nbH == 2 && nbV == 2)
                 -- TODO: this is not sufficient (see example #5)
-                && (Map.size board == 8) `implies` (not $ nbH == 3 && nbV == 3)
+                && (Map.size board == 8) `implies` not (nbH == 3 && nbV == 3)
 
 alignHor :: Coord -> Board -> [Int]
-alignHor c b = (alignDir c b $ first succ) ++ (alignDir c b $ first pred)
+alignHor c b = alignDir c b (first succ) ++ alignDir c b (first pred)
 
 alignVer :: Coord -> Board -> [Int]
-alignVer c b = (alignDir c b $ second pred) ++ (alignDir c b $ second succ)
+alignVer c b = alignDir c b (second pred) ++ alignDir c b (second succ)
 
 alignDir :: Coord -> Board -> (Coord -> Coord) -> [Int]
 alignDir coord board next = alignDir' (next coord)
   where
     alignDir' coord =
       case Map.lookup coord board of
-        Just t -> t:(alignDir' (next coord))
+        Just t -> t:alignDir' (next coord)
         Nothing -> []
 
 scoreFor :: Board -> Move -> Int
-scoreFor board [] = 0
+scoreFor _     [] = 0
 scoreFor board move = baseScore + specials + if length move == 3 then trioletBonus else 0
   where
-    baseScore =
-      if onlyFirst then
-        snd (head move)
-      else if allEq (map fst coords) then
-        head (sums alignVer) + sum (sums alignHor)
-      else
-        head (sums alignHor) + sum (sums alignVer)
+    baseScore
+      | onlyFirst = snd (head move)
+      | allEq (map fst coords) = head (sums alignVer) + sum (sums alignHor)
+      | otherwise = head (sums alignHor) + sum (sums alignVer)
 
     board' = foldl (\b (c, t) -> Map.insert c t b) board move
     onlyFirst = Map.size board' == 1
@@ -145,7 +142,7 @@ scoreFor board move = baseScore + specials + if length move == 3 then trioletBon
     sumSpecial p mult =
       case filter (p . fst) move of
         [] -> 0
-        (c@(x, y), t):_ -> (mult - 1) * if trio then trioSum * 2 else t
+        (c, t):_ -> (mult - 1) * if trio then trioSum * 2 else t
           where
             trio = (sumH == trioSum && nbH == trioCount) || (sumV == trioSum && nbV == trioCount)
             hs = alignHor c board'
@@ -183,7 +180,7 @@ playMove (GameState board bag players (Just currentPlayer) rng) move = gameState
     board' = foldl (\b (c, t) -> Map.insert c t b) board move
     (score, rack) = Seq.index players currentPlayer
     hasBis = any isBis $ map fst move
-    nextPlayer = if hasBis then currentPlayer else (currentPlayer + 1) `mod` (length players)
+    nextPlayer = if hasBis then currentPlayer else (currentPlayer + 1) `mod` length players
     currentPlayer' = if isOver then Nothing else Just nextPlayer
     (newTiles, bag') = splitAt (length move) bag
     rack' = newTiles ++ (rack \\ map snd move)
@@ -192,13 +189,14 @@ playMove (GameState board bag players (Just currentPlayer) rng) move = gameState
     isOver = null rack'
     gameState' = GameState board' bag' players' currentPlayer' rng
 
+-- TODO: can only change if there are at least 5 remaining tiles in the bag
 playChangeAll :: GameState -> GameState
 playChangeAll gs@(GameState _ _ _ Nothing _) = gs
-playChangeAll gs@(GameState board bag players (Just currentPlayer) rng) = gameState'
+playChangeAll (GameState board bag players (Just currentPlayer) rng) = gameState'
   where
     gameState' = GameState board bag'' players' currentPlayer' rng'
     (score, rack) = Seq.index players currentPlayer
-    currentPlayer' = Just $ (currentPlayer + 1) `mod` (length players)
+    currentPlayer' = Just $ (currentPlayer + 1) `mod` length players
     (rack', bag') = splitAt 3 bag
     players' = Seq.update currentPlayer (score, rack') players
     (bag'', rng') = runRand (shuffleM $ rack ++ bag') rng

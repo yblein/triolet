@@ -1,6 +1,6 @@
 {-# LANGUAGE DeriveDataTypeable #-}
 
-import Graphics.UI.Gtk hiding (rectangle) -- (fill, background)
+import Graphics.UI.Gtk hiding (rectangle)
 import Graphics.Rendering.Cairo
 import Control.Monad.Trans (liftIO)
 
@@ -11,27 +11,20 @@ import System.Random
 import qualified Data.HashMap.Strict as Map
 import qualified Data.Sequence as Seq
 import System.Console.CmdArgs hiding ((:=))
-import Debug.Trace
 
 import Game
 import Utils
 
-playAI gs@(GameState _ _ players Nothing _) = gs
+playAI :: GameState -> GameState
+playAI gs@(GameState _ _ _ Nothing _) = gs
 playAI gs@(GameState board _ players (Just currentPlayer) _) = gs'
   where
     gs' = if not (null currLegalMoves) then playMove gs bestMove else playChangeAll gs
     currLegalMoves = legalMoves board $ snd $ Seq.index players currentPlayer
-    bestMove = maximumOn (evaluate board) $ currLegalMoves
+    bestMove = maximumOn (evaluate board) currLegalMoves
 
 evaluate :: Board -> Move -> Int
 evaluate board move = scoreFor board move + if any isBis $ map fst move then 30 else 0
-
-{-
-handleEvent :: Event -> GameState -> GameState
-handleEvent (EventKey (MouseButton LeftButton) Up _ pos) gs = handleTileClick (posToCoord pos) gs
-    where posToCoord (x, y) = (7 + (truncate (x+25)) `div` 50, 7 + (truncate (y+25)) `div` 50)
-handleEvent _ gs = gs
--}
 
 data Options = Options { numberPlayers :: Int } deriving (Data, Typeable)
 

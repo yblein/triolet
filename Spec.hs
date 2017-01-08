@@ -6,10 +6,10 @@ import Game
 
 main :: IO ()
 main = hspec $ do
-  describe "can play example" $ do
+  describe "can play example" $
     mapM_ examplePlayable examples
 
-  describe "score example" $ do
+  describe "score example" $
     mapM_ exampleMatchScore examples
 
 exampleMatchScore (i, tiles, move, score) =
