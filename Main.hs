@@ -15,11 +15,11 @@ import System.Console.CmdArgs hiding ((:=))
 import Game
 import Utils
 
-playAI :: GameState -> GameState
-playAI gs@(GameState _ _ _ Nothing _) = gs
+playAI :: GameState -> (GameState, Int)
+playAI gs@(GameState _ _ _ Nothing _) = (gs, -2)
 playAI gs@(GameState board _ players (Just currentPlayer) _) = gs'
   where
-    gs' = if not (null currLegalMoves) then playMove gs bestMove else playChangeAll gs
+    gs' = if not (null currLegalMoves) then playMove gs bestMove else (playChangeAll gs, -1)
     currLegalMoves = legalMoves board $ snd $ Seq.index players currentPlayer
     bestMove = maximumOn (evaluate board) currLegalMoves
 
@@ -41,15 +41,29 @@ main = do
   game <- newStdGen >>= (newIORef . initGame (numberPlayers options))
 
   initGUI
+
+  drawingArea <- drawingAreaNew
+  statusbar <- statusbarNew
+
+  vb <- vBoxNew False 0
+  boxPackStart vb drawingArea PackGrow 0
+  boxPackEnd vb statusbar PackNatural 0
+
   window <- windowNew
   set window [windowTitle := "Triolet" ]
   on window deleteEvent $ liftIO mainQuit >> return False
-  drawingArea <- drawingAreaNew
-  containerAdd window drawingArea
+  containerAdd window vb
   widgetShowAll window
 
   on drawingArea buttonPressEvent $ do
-    liftIO $ modifyIORef game playAI
+    gameState <- liftIO $ readIORef game
+    let (gameState', points) = playAI gameState
+    let msg = case points of
+          -2 -> "Game is over."
+          -1 -> "Player changed all his tiles."
+          _  -> "Player scored " ++ show points ++ " points."
+    liftIO $ writeIORef game gameState'
+    liftIO $ statusbarPush statusbar 0 msg
     liftIO $ widgetQueueDraw drawingArea
     return True
 

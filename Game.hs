@@ -175,9 +175,9 @@ midAndOffsets (x, y) = (m, dx, dy)
     dy = abs $ m - y
 
 -- assume that the move is valid (i.e. it respects the game constraints and the player owns the played tiles)
-playMove :: GameState -> Move -> GameState
-playMove gs@(GameState _ _ _ Nothing _) _ = gs
-playMove (GameState board bag players (Just currentPlayer) rng) move = gameState'
+playMove :: GameState -> Move -> (GameState, Int)
+playMove gs@(GameState _ _ _ Nothing _) _ = (gs, 0)
+playMove (GameState board bag players (Just currentPlayer) rng) move = (gameState', points)
   where
     board' = foldl (\b (c, t) -> Map.insert c t b) board move
     (score, rack) = Seq.index players currentPlayer
@@ -186,7 +186,8 @@ playMove (GameState board bag players (Just currentPlayer) rng) move = gameState
     currentPlayer' = if isOver then Nothing else Just nextPlayer
     (newTiles, bag') = splitAt (length move) bag
     rack' = newTiles ++ (rack \\ map snd move)
-    score' = score + scoreFor board' move + if isOver then sum $ concatMap snd players' else 0
+    score' = score + points
+    points = scoreFor board' move + if isOver then sum $ concatMap snd players' else 0
     players' = Seq.update currentPlayer (score', rack') players
     isOver = null rack'
     gameState' = GameState board' bag' players' currentPlayer' rng
