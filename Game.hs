@@ -70,11 +70,11 @@ allCoords :: [Coord]
 allCoords = liftM2 (,) [0..boardSize - 1] [0..boardSize - 1]
 
 aligned :: Board -> [Coord] -> Bool
-aligned board coords = any aligned' [coords, map swap coords]
+aligned board coords = any aligned' [(fst, snd), (snd, fst)]
   where
-    aligned' coords = allEq (map fst coords) && (cont || around)
+    aligned' (fst', snd') = allEq (map fst' coords) && (cont || around)
       where
-        xs' = sort $ map snd coords
+        xs' = sort $ map snd' coords
         ds = zipWith (-) (tail xs') xs'
         cont = all (== 1) ds
         around = ds == [2] && Map.member (mid (head coords) (last coords)) board
