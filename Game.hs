@@ -98,30 +98,25 @@ inBoard (x, y) = x >= 0 && x < boardSize && y >= 0 && y < boardSize
 
 playable :: Board -> Coord -> Tile -> Bool
 playable board coord tile =
-  inBoard coord && empty && (firstTile || (adj && nbAlignLEMax && sumAlignLEMax && trio && firstSquares))
+  inBoard coord && empty && (firstTile || (adj && gameConstraints && firstSquares))
   where
     empty = not $ Map.member coord board
     firstTile = coord == (boardSize `div` 2, boardSize `div` 2)
-    hs = alignHor coord board
-    vs = alignVer coord board
-    nbH = length hs + 1
-    nbV = length vs + 1
-    nbAlignLEMax = nbH <= trioCount && nbV <= trioCount
-    sumH = sum hs + tile
-    sumV = sum vs + tile
-    sumAlignLEMax = sumH <= trioSum && sumV <= trioSum
-    trio = ((nbH == trioCount) `implies` (sumH == trioSum)) && ((nbV == trioCount) `implies` (sumV == trioSum))
+    (nbH, sumH) = (+1) *** (+tile) $ sumCountHor coord board
+    (nbV, sumV) = (+1) *** (+tile) $ sumCountVer coord board
+    gameConstraints = constrDir (nbH, sumH) && constrDir (nbV, sumV)
+    constrDir (nb, sum) = nb <= trioCount && sum <= trioSum && ((nb == trioCount) `implies` (sum == trioSum))
     adj = nbH >= 2 || nbV >= 2
     -- TODO; the rule for 2-wide squares is not sufficient if the move has more tiles
     firstSquares = (Map.size board == 3) `implies` not (nbH == 2 && nbV == 2)
                 -- TODO: this is not sufficient (see example #5)
                 && (Map.size board == 8) `implies` not (nbH == 3 && nbV == 3)
 
-alignHor :: Coord -> Board -> [Int]
-alignHor c b = alignDir c b (first succ) ++ alignDir c b (first pred)
+sumCountHor :: Coord -> Board -> (Int, Int)
+sumCountHor c b = length &&& sum $ alignDir c b (first succ) ++ alignDir c b (first pred)
 
-alignVer :: Coord -> Board -> [Int]
-alignVer c b = alignDir c b (second pred) ++ alignDir c b (second succ)
+sumCountVer :: Coord -> Board -> (Int, Int)
+sumCountVer c b = length &&& sum $ alignDir c b (second pred) ++ alignDir c b (second succ)
 
 alignDir :: Coord -> Board -> (Coord -> Coord) -> [Int]
 alignDir coord board next = alignDir' (next coord)
@@ -137,33 +132,27 @@ scoreFor board move = baseScore + specials + if length move == 3 then trioletBon
   where
     baseScore
       | onlyFirst = snd (head move)
-      | allEq (map fst coords) = head (sums alignVer) + sum (sums alignHor)
-      | otherwise = head (sums alignHor) + sum (sums alignVer)
+      | allEq (map fst coords) = head (sums sumCountVer) + sum (sums sumCountHor)
+      | otherwise = head (sums sumCountHor) + sum (sums sumCountVer)
 
     board' = foldl (\b (c, t) -> Map.insert c t b) board move
     onlyFirst = Map.size board' == 1
     coords = map fst move
 
     sums fdir = map (sum' fdir) move
-    sum' fdir (c, t) = s' + if s' == trioSum && nb == trioCount then trioBonus else 0
-      where ts = fdir c board'
-            s = sum ts
-            s' = s + if nb > 1 then t else 0
-            nb = 1 + length ts
+    sum' fdir (c, t) = s' + if s' == trioSum && n == trioCount then trioBonus else 0
+      where (n, s) = first (+1) $ fdir c board'
+            s' = s + if n > 1 then t else 0
 
     specials = sumSpecial isDouble 2 + sumSpecial isTripple 3
     sumSpecial p mult =
       case filter (p . fst) move of
         [] -> 0
-        (c, t):_ -> (mult - 1) * if trio then trioSum * 2 else t
+        (coord, tile):_ -> (mult - 1) * if trio then trioSum * 2 else tile
           where
             trio = (sumH == trioSum && nbH == trioCount) || (sumV == trioSum && nbV == trioCount)
-            hs = alignHor c board'
-            vs = alignVer c board'
-            nbH = length hs + 1
-            nbV = length vs + 1
-            sumH = sum hs + t
-            sumV = sum vs + t
+            (nbH, sumH) = (+1) *** (+tile) $ sumCountHor coord board
+            (nbV, sumV) = (+1) *** (+tile) $ sumCountVer coord board
 
 
 isDouble :: Coord -> Bool
