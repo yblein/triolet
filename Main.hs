@@ -55,7 +55,7 @@ main = do
   containerAdd window vb
   widgetShowAll window
 
-  on drawingArea buttonPressEvent $ do
+  on window keyPressEvent $ do
     gameState <- liftIO $ readIORef game
     let (gameState', points) = playAI gameState
     let msg = case points of
@@ -71,6 +71,8 @@ main = do
     w <- liftIO (fromIntegral <$> widgetGetAllocatedWidth drawingArea)
     h <- liftIO (fromIntegral <$> widgetGetAllocatedHeight drawingArea)
     translate (w / 2) (h / 2)
+    let ratio = (min w h) / 900
+    scale ratio ratio
     game' <- liftIO $ readIORef game
     drawGame game'
 
