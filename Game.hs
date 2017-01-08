@@ -1,6 +1,11 @@
 {-# LANGUAGE TupleSections #-}
 
-module Game where
+module Game
+  ( Move, Board, Coord, Player, GameState(..)
+  , boardSize, allCoords, trioletBonus
+  , initGame, playMove, playChangeAll, scoreFor, legalMoves, validMove
+  , isDouble, isTripple, isBis
+  ) where
 
 import System.Random.Shuffle
 import Control.Monad.Random
@@ -65,6 +70,14 @@ legalMoves board rack = concatMap (rec board []) $ permsSumLE15 rack
             coords = case move of
               [] -> allCoords
               ((x, y), _):_ -> map (x,) [y-2..y+2] ++ map (,y) [x-2..x+2]
+
+validMove :: Board -> Move -> Bool
+validMove board move = allPlayable board move && aligned board (map fst move)
+  where
+    -- the move may not be given in proper order, just check that at least one permutation is valid
+    allPlayable board move = any (allPlayable' board) (permutations move)
+    allPlayable' _ [] = True
+    allPlayable' board ((c, t):xs) = playable board c t && allPlayable' (Map.insert c t board) xs
 
 allCoords :: [Coord]
 allCoords = liftM2 (,) [0..boardSize - 1] [0..boardSize - 1]

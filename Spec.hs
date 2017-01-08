@@ -17,12 +17,6 @@ exampleMatchScore (i, tiles, move, score) =
 
 examplePlayable (i, tiles, move, score) =
   it (show i) $ move `shouldSatisfy` validMove (Map.fromList tiles)
-    where
-      validMove board move = allPlayable board move && aligned board (map fst move)
-      -- the example moves are not in proper order, just check that at least one permutation is valid
-      allPlayable board move = any (allPlayable' board) (permutations move)
-      allPlayable' _ [] = True
-      allPlayable' board ((c, t):xs) = playable board c t && allPlayable' (Map.insert c t board) xs
 
 -- | These are scoring examples extracted from the game rules. The tuples have the form
 -- (example number, tiles on the board, tiles to play, expected score)
