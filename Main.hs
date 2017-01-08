@@ -79,6 +79,7 @@ main = do
 colorBlack   = setSourceRGB 0 0 0
 colorTile    = setSourceRGB 0.969 0.922 0.82
 colorBg      = setSourceRGB 0.29 0.514 0.831
+colorRack    = setSourceRGB 0.5 0.5 0.5
 colorDouble  = setSourceRGB 0.98 0.757 0.059
 colorTripple = setSourceRGB 0.875 0.078 0.078
 colorBis     = setSourceRGB 0.918 0.412 0.067
@@ -140,7 +141,9 @@ drawPlayer ((i, curr), (score, rack)) = do
   save
   rotate $ fromIntegral i * pi / 2
   translate (- tileWidth / 2) $ 3 * boardWidth / 5
+  rectangle (- tileWidth) 0 (tileWidth * 3) tileWidth >> colorRack >> fill
   mapM_ drawTile $ zip (zip [-1, 0, 1] $ repeat 0) rack
+  colorBlack
   drawText (tileWidth * 5) (tileWidth / 2) $ show score
   when curr $ drawText (tileWidth * 4) (tileWidth / 2) "*"
   restore
