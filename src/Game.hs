@@ -197,7 +197,6 @@ playMove (GameState board bag players (Just currentPlayer) rng) move = (gameStat
     isOver = null rack'
     gameState' = GameState board' bag' players' currentPlayer' rng
 
--- TODO: can only change if there are at least 5 remaining tiles in the bag
 playChangeAll :: GameState -> GameState
 playChangeAll gs@(GameState _ _ _ Nothing _) = gs
 playChangeAll (GameState board bag players (Just currentPlayer) rng) = gameState'

@@ -18,10 +18,13 @@ import Game
 import Utils
 
 playAI :: GameState -> (GameState, Int)
-playAI gs@(GameState _ _ _ Nothing _) = (gs, -2)
-playAI gs@(GameState board _ players (Just currentPlayer) _) = gs'
+playAI gs@(GameState _ _ _ Nothing _) = (gs, -3)
+playAI gs@(GameState board bag players (Just currentPlayer) _) = gs'
   where
-    gs' = if not (null currLegalMoves) then playMove gs bestMove else (playChangeAll gs, -1)
+    gs'
+      | not (null currLegalMoves) = playMove gs bestMove
+      | length bag >= 5 = (playChangeAll gs, -1)
+      | otherwise = (gs, -2)
     currLegalMoves = legalMoves board $ snd $ Seq.index players currentPlayer
     bestMove = maximumOn (evaluate board) currLegalMoves
 
@@ -61,7 +64,8 @@ main = do
     gameState <- liftIO $ readIORef game
     let (gameState', points) = playAI gameState
     let msg = case points of
-          -2 -> "Game is over."
+          -3 -> "Game is over."
+          -2 -> "Player cannot play."
           -1 -> "Player changed all his tiles."
           _  -> "Player scored " ++ show points ++ " points."
     liftIO $ writeIORef game gameState'
