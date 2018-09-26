@@ -1,0 +1,28 @@
+name: triolet
+synopsis: Haskell implementation of the board game Triolet
+version: 0.1.0
+
+dependencies:
+    - base >= 4.9 && < 5
+    - mtl
+    - random
+    - containers
+    - random-shuffle
+    - MonadRandom
+    - unordered-containers
+
+source-dirs: src
+
+executable:
+    main: Main
+    source-dirs: bin
+    dependencies:
+        - cmdargs
+        - gtk3
+        - cairo
+
+tests:
+    spec:
+        main: Spec
+        source-dirs: test
+        dependencies: hspec

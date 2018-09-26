@@ -1,5 +1,7 @@
 {-# LANGUAGE DeriveDataTypeable #-}
 
+module Main where
+
 import Graphics.UI.Gtk hiding (rectangle)
 import Graphics.Rendering.Cairo
 import Control.Monad.Trans (liftIO)

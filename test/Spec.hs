@@ -1,3 +1,5 @@
+module Spec where
+
 import Test.Hspec
 import Data.List (permutations)
 import qualified Data.HashMap.Strict as Map

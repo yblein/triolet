@@ -1,25 +1,59 @@
-name:                triolet
-version:             0.1.0.0
-synopsis:            Haskell implementation of the board game "Triolet".
+cabal-version: 1.12
 
-license:             MIT
-license-file:        LICENSE
-author:              Yoann Blein
-maintainer:          yoann.blein@free.fr
-category:            Game
+-- This file has been generated from package.yaml by hpack version 0.31.0.
+--
+-- see: https://github.com/sol/hpack
+--
+-- hash: 4984188f03905c6b56af6fcaed6e21c9dfd60b37c4ad95404960885db106a974
 
-build-type:          Simple
-cabal-version:       >=1.10
+name:           triolet
+version:        0.1.0
+synopsis:       Haskell implementation of the board game Triolet
+license:        MIT
+license-file:   LICENSE
+build-type:     Simple
 
 executable triolet
-  main-is:             Main.hs
-  other-modules:       Game, Utils
-  build-depends:       base >=4.9 && <5, mtl, random, containers, random-shuffle, MonadRandom, unordered-containers, cmdargs, gtk3, cairo
-  default-language:    Haskell2010
+  main-is: Main.hs
+  other-modules:
+      Game
+      Utils
+      Paths_triolet
+  hs-source-dirs:
+      src
+      bin
+  ghc-options: -main-is Main
+  build-depends:
+      MonadRandom
+    , base >=4.9 && <5
+    , cairo
+    , cmdargs
+    , containers
+    , gtk3
+    , mtl
+    , random
+    , random-shuffle
+    , unordered-containers
+  default-language: Haskell2010
 
-test-suite test-triolet
-  type:                exitcode-stdio-1.0
-  main-is:             Spec.hs
-  other-modules:       Game, Utils
-  default-language:    Haskell2010
-  build-depends:       base >=4.9 && <5, mtl, random, containers, random-shuffle, MonadRandom, unordered-containers, hspec
+test-suite spec
+  type: exitcode-stdio-1.0
+  main-is: Spec.hs
+  other-modules:
+      Game
+      Utils
+      Paths_triolet
+  hs-source-dirs:
+      src
+      test
+  ghc-options: -main-is Spec
+  build-depends:
+      MonadRandom
+    , base >=4.9 && <5
+    , containers
+    , hspec
+    , mtl
+    , random
+    , random-shuffle
+    , unordered-containers
+  default-language: Haskell2010
