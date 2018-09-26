@@ -62,22 +62,31 @@ permsSumLE15 = nub . concatMap permutations . filter valid . init . powerset
   where valid l = sum l <= trioSum && ((length l == trioCount) `implies` (sum l == trioSum))
 
 legalMoves :: Board -> Rack -> [Move]
-legalMoves board rack = concatMap (rec board []) $ permsSumLE15 rack
+legalMoves board rack = filter (not . createsSquare board) $ concatMap (rec board []) $ permsSumLE15 rack
   where
     rec _     move [] = [move]
     rec board move (t:ts) = concatMap (\c -> rec (Map.insert c t board) ((c, t):move) ts) validCoords
-      where validCoords = filter (\c -> playable board c t && aligned board (c:map fst move)) coords
+      where validCoords = filter (\c -> validTile board c t && aligned board (c:map fst move)) coords
             coords = case move of
               [] -> allCoords
               ((x, y), _):_ -> map (x,) [y-2..y+2] ++ map (,y) [x-2..x+2]
 
 validMove :: Board -> Move -> Bool
-validMove board move = allPlayable board move && aligned board (map fst move)
+validMove board move = allValid board move && aligned board (map fst move) && not (createsSquare board move)
   where
     -- the move may not be given in proper order, just check that at least one permutation is valid
-    allPlayable board move = any (allPlayable' board) (permutations move)
-    allPlayable' _ [] = True
-    allPlayable' board ((c, t):xs) = playable board c t && allPlayable' (Map.insert c t board) xs
+    allValid board move = any (allValid' board) (permutations move)
+    allValid' _ [] = True
+    allValid' board ((c, t):xs) = validTile board c t && allValid' (Map.insert c t board) xs
+
+createsSquare :: Board -> Move -> Bool
+createsSquare board move = createsSqSize 2 || createsSqSize 3
+  where
+    createsSqSize n = nbTiles == n*n && nbXs == n && nbYs == n
+    nbTiles = Map.size board + length move
+    nbXs = length $ nub $ map fst coords
+    nbYs = length $ nub $ map snd coords
+    coords = Map.keys board ++ map fst move
 
 allCoords :: [Coord]
 allCoords = liftM2 (,) [0..boardSize - 1] [0..boardSize - 1]
@@ -96,9 +105,9 @@ aligned board coords = any aligned' [(fst, snd), (snd, fst)]
 inBoard :: Coord -> Bool
 inBoard (x, y) = x >= 0 && x < boardSize && y >= 0 && y < boardSize
 
-playable :: Board -> Coord -> Tile -> Bool
-playable board coord tile =
-  inBoard coord && empty && (firstTile || (adj && gameConstraints && firstSquares))
+validTile :: Board -> Coord -> Tile -> Bool
+validTile board coord tile =
+  inBoard coord && empty && (firstTile || (adj && gameConstraints))
   where
     empty = not $ Map.member coord board
     firstTile = coord == (boardSize `div` 2, boardSize `div` 2)
@@ -107,10 +116,6 @@ playable board coord tile =
     gameConstraints = constrDir (nbH, sumH) && constrDir (nbV, sumV)
     constrDir (nb, sum) = nb <= trioCount && sum <= trioSum && ((nb == trioCount) `implies` (sum == trioSum))
     adj = nbH >= 2 || nbV >= 2
-    -- TODO; the rule for 2-wide squares is not sufficient if the move has more tiles
-    firstSquares = (Map.size board == 3) `implies` not (nbH == 2 && nbV == 2)
-                -- TODO: this is not sufficient (see example #5)
-                && (Map.size board == 8) `implies` not (nbH == 3 && nbV == 3)
 
 sumCountHor :: Coord -> Board -> (Int, Int)
 sumCountHor c b = length &&& sum $ alignDir c b (first succ) ++ alignDir c b (first pred)

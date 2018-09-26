@@ -14,6 +14,12 @@ main = hspec $ do
   describe "score example" $
     mapM_ exampleMatchScore examples
 
+  describe "validMove" $ do
+    it "forbids creating a 2x2 square" $ do
+      let board = Map.fromList [((6, 6), 0), ((7, 6), 0), ((6, 7), 0)]
+      let move = [((7, 7), 0)]
+      move `shouldNotSatisfy` validMove board
+
 exampleMatchScore (i, tiles, move, score) =
   it (show i) $ scoreFor (Map.fromList tiles) move `shouldBe` score
 
