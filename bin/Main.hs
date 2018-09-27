@@ -56,9 +56,10 @@ main = do
 
   window <- windowNew
   set window [windowTitle := "Triolet" ]
-  on window deleteEvent $ liftIO mainQuit >> return False
   containerAdd window vb
   widgetShowAll window
+
+  on window deleteEvent $ liftIO mainQuit >> return False
 
   on window keyPressEvent $ do
     gameState <- liftIO $ readIORef game
@@ -84,13 +85,13 @@ main = do
 
   mainGUI
 
-colorBlack   = setSourceRGB 0 0 0
-colorTile    = setSourceRGB 0.969 0.922 0.82
-colorBg      = setSourceRGB 0.29 0.514 0.831
-colorRack    = setSourceRGB 0.5 0.5 0.5
-colorDouble  = setSourceRGB 0.98 0.757 0.059
-colorTripple = setSourceRGB 0.875 0.078 0.078
-colorBis     = setSourceRGB 0.918 0.412 0.067
+setColorBlack   = setSourceRGB 0 0 0
+setColorTile    = setSourceRGB 0.969 0.922 0.82
+setColorBoard   = setSourceRGB 0.29 0.514 0.831
+setColorRack    = setSourceRGB 0.5 0.5 0.5
+setColorDouble  = setSourceRGB 0.98 0.757 0.059
+setColorTripple = setSourceRGB 0.875 0.078 0.078
+setColorBis     = setSourceRGB 0.918 0.412 0.067
 
 boardWidth = 600
 tileWidth = boardWidth / fromIntegral boardSize
@@ -104,57 +105,61 @@ drawGame (GameState board _ players currentPlayer _) = do
   mapM_ drawPlayer $ zip (map (\i -> (i, Just i == currentPlayer)) [0..]) $ toList players
 
 drawBoard :: Board -> Render ()
-drawBoard board = do
-  save
+drawBoard board = withLocalState $ do
   translate (- boardWidth / 2) (- boardWidth / 2)
   let tw = tileWidth
 
   -- blue background
-  colorBg
-  rectangle 0 0 boardWidth boardWidth >> fill
+  setColorBoard
+  rectangle 0 0 boardWidth boardWidth
+  fill
 
   -- special cells
   let doubles = filter isDouble allCoords
   let tripples = filter isTripple allCoords
   let bises = filter isBis allCoords
-  let specials = [(doubles, colorDouble), (tripples, colorTripple), (bises, colorBis)]
-  forM_ specials $ \(coords, color) -> do
-    color
+  let specials = [(doubles, setColorDouble), (tripples, setColorTripple), (bises, setColorBis)]
+  forM_ specials $ \(coords, setColor) -> do
+    setColor
     mapM_ (\(x, y) -> rectangle (fromIntegral x * tw) (fromIntegral y * tw) tw tw) coords
     fill
 
   -- grid
   mapM_ (\x -> line x 0 x boardWidth) [0,tw..boardWidth]
   mapM_ (\y -> line 0 y boardWidth y) [0,tw..boardWidth]
-  colorBlack
+  setColorBlack
   setLineWidth 2
   stroke
 
   -- tiles
   mapM_ drawTile $ Map.toList board
 
-  restore
-
 drawTile :: (Coord, Int) -> Render ()
 drawTile ((x, y), t) = do
   let w = tileWidth / 2 - 2
   let (x', y') = (fromIntegral x * tileWidth + tileWidth / 2, fromIntegral y * tileWidth + tileWidth / 2)
-  colorTile
+  setColorTile
   drawRoundedRect (x' - w) (x' + w) (y' - w) (y' + w) 4
-  colorBlack
+  setColorBlack
   drawText x' y' (show t)
 
 drawPlayer :: ((Int, Bool), Player) -> Render ()
-drawPlayer ((i, curr), (score, rack)) = do
-  save
+drawPlayer ((i, curr), (score, rack)) = withLocalState $ do
   rotate $ fromIntegral i * pi / 2
   translate (- tileWidth / 2) $ 3 * boardWidth / 5
-  rectangle (- tileWidth) 0 (tileWidth * 3) tileWidth >> colorRack >> fill
+
+  -- rack background
+  rectangle (- tileWidth) 0 (tileWidth * 3) tileWidth
+  setColorRack
+  fill
+
+  -- rack tiles
   mapM_ drawTile $ zip (zip [-1, 0, 1] $ repeat 0) rack
-  colorBlack
+
+  -- score and turn indicator
+  setColorBlack
   drawText (tileWidth * 5) (tileWidth / 2) $ show score
   when curr $ drawText (tileWidth * 4) (tileWidth / 2) "*"
-  restore
 
 line :: Double -> Double -> Double -> Double -> Render ()
 line a b c d = moveTo a b >> lineTo c d
@@ -177,3 +182,6 @@ drawText x y s = do
   let y' = y - (textExtentsHeight e / 2 + textExtentsYbearing e)
   moveTo x' y'
   showText s
+
+withLocalState :: Render () -> Render ()
+withLocalState f = save >> f >> restore

@@ -111,17 +111,17 @@ validTile board coord tile =
   where
     empty = not $ Map.member coord board
     firstTile = coord == (boardSize `div` 2, boardSize `div` 2)
-    (nbH, sumH) = (+1) *** (+tile) $ sumCountHor coord board
-    (nbV, sumV) = (+1) *** (+tile) $ sumCountVer coord board
+    (nbH, sumH) = (+1) *** (+tile) $ countNSumHor coord board
+    (nbV, sumV) = (+1) *** (+tile) $ countNSumVer coord board
     gameConstraints = constrDir (nbH, sumH) && constrDir (nbV, sumV)
     constrDir (nb, sum) = nb <= trioCount && sum <= trioSum && ((nb == trioCount) `implies` (sum == trioSum))
     adj = nbH >= 2 || nbV >= 2
 
-sumCountHor :: Coord -> Board -> (Int, Int)
-sumCountHor c b = length &&& sum $ alignDir c b (first succ) ++ alignDir c b (first pred)
+countNSumHor :: Coord -> Board -> (Int, Int)
+countNSumHor c b = length &&& sum $ alignDir c b (first succ) ++ alignDir c b (first pred)
 
-sumCountVer :: Coord -> Board -> (Int, Int)
-sumCountVer c b = length &&& sum $ alignDir c b (second pred) ++ alignDir c b (second succ)
+countNSumVer :: Coord -> Board -> (Int, Int)
+countNSumVer c b = length &&& sum $ alignDir c b (second pred) ++ alignDir c b (second succ)
 
 alignDir :: Coord -> Board -> (Coord -> Coord) -> [Int]
 alignDir coord board next = alignDir' (next coord)
@@ -136,11 +136,11 @@ scoreFor _     [] = 0
 scoreFor board move = baseScore + specials + if length move == 3 then trioletBonus else 0
   where
     baseScore
-      | onlyFirst = snd (head move)
-      | allEq (map fst coords) = head (sums sumCountVer) + sum (sums sumCountHor)
-      | otherwise = head (sums sumCountHor) + sum (sums sumCountVer)
+      | onlyFirst              = snd (head move)
+      | allEq (map fst coords) = head (sums countNSumVer) + sum (sums countNSumHor)
+      | otherwise              = head (sums countNSumHor) + sum (sums countNSumVer)
 
-    board' = foldl (\b (c, t) -> Map.insert c t b) board move
+    board' = updateBoard board move
     onlyFirst = Map.size board' == 1
     coords = map fst move
 
@@ -153,38 +153,45 @@ scoreFor board move = baseScore + specials + if length move == 3 then trioletBon
     sumSpecial p mult =
       case filter (p . fst) move of
         [] -> 0
-        (coord, tile):_ -> (mult - 1) * if trio then trioSum * 2 else tile
+        (coord, tile):_ -> (mult - 1) * if trio then trioSum + trioBonus else tile
           where
             trio = (sumH == trioSum && nbH == trioCount) || (sumV == trioSum && nbV == trioCount)
-            (nbH, sumH) = (+1) *** (+tile) $ sumCountHor coord board
-            (nbV, sumV) = (+1) *** (+tile) $ sumCountVer coord board
+            (nbH, sumH) = (+1) *** (+tile) $ countNSumHor coord board
+            (nbV, sumV) = (+1) *** (+tile) $ countNSumVer coord board
 
 
 isDouble :: Coord -> Bool
 isDouble (x, y) = (y == m && dx == 4) || (x == m && dy == 4) || (dx == 3 && dy == 3) || (x, y) == (m, m)
-  where (m, dx, dy) = midAndOffsets (x, y)
+  where
+    (dx, dy) = dists (x, y)
+    m = boardSize `div` 2
 
 isTripple :: Coord -> Bool
 isTripple (x, y) = (dx == 3 && dy == 6) || (dx == 6 && dy == 3)
-  where (_, dx, dy) = midAndOffsets (x, y)
+  where (dx, dy) = dists (x, y)
 
 isBis :: Coord -> Bool
 isBis (x, y) = (y == m && dx == 7) || (x == m && dy == 7) || (dx == 6 && dy == 6)
-  where (m, dx, dy) = midAndOffsets (x, y)
+  where
+    (dx, dy) = dists (x, y)
+    m = boardSize `div` 2
 
-midAndOffsets :: Coord -> (Int, Int, Int)
-midAndOffsets (x, y) = (m, dx, dy)
+dists :: Coord -> (Int, Int)
+dists (x, y) = (dx, dy)
   where
     m = boardSize `div` 2
     dx = abs $ m - x
     dy = abs $ m - y
+
+updateBoard :: Board -> Move -> Board
+updateBoard = foldl (\b (c, t) -> Map.insert c t b)
 
 -- assume that the move is valid (i.e. it respects the game constraints and the player owns the played tiles)
 playMove :: GameState -> Move -> (GameState, Int)
 playMove gs@(GameState _ _ _ Nothing _) _ = (gs, 0)
 playMove (GameState board bag players (Just currentPlayer) rng) move = (gameState', points)
   where
-    board' = foldl (\b (c, t) -> Map.insert c t b) board move
+    board' = updateBoard board move
     (score, rack) = Seq.index players currentPlayer
     hasBis = any isBis $ map fst move
     nextPlayer = if hasBis then currentPlayer else (currentPlayer + 1) `mod` length players
@@ -192,7 +199,7 @@ playMove (GameState board bag players (Just currentPlayer) rng) move = (gameStat
     (newTiles, bag') = splitAt (length move) bag
     rack' = newTiles ++ (rack \\ map snd move)
     score' = score + points
-    points = scoreFor board' move + if isOver then sum $ concatMap snd players' else 0
+    points = scoreFor board move + if isOver then sum $ concatMap snd players' else 0
     players' = Seq.update currentPlayer (score', rack') players
     isOver = null rack'
     gameState' = GameState board' bag' players' currentPlayer' rng
