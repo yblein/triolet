@@ -58,7 +58,7 @@ initGame nbPlayers rng = GameState Map.empty bag' (Seq.fromList $ zip (repeat 0)
         (racks, bag') = runState (initRacks nbPlayers) bag
 
 permsSumLE15 :: Rack -> [[Tile]]
-permsSumLE15 = nub . concatMap permutations . filter valid . init . powerset
+permsSumLE15 = nub . concatMap permutations . filter valid . tail . subsequences
   where valid l = sum l <= trioSum && ((length l == trioCount) `implies` (sum l == trioSum))
 
 legalMoves :: Board -> Rack -> [Move]
