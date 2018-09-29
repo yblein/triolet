@@ -8,23 +8,37 @@ import Game
 
 main :: IO ()
 main = hspec $ do
-  describe "can play example" $
+  describe "move validation" $ do
     mapM_ examplePlayable examples
 
-  describe "score example" $
-    mapM_ exampleMatchScore examples
-
-  describe "validMove" $ do
     it "forbids creating a 2x2 square" $ do
       let board = Map.fromList [((6, 6), 0), ((7, 6), 0), ((6, 7), 0)]
       let move = [((7, 7), 0)]
       move `shouldNotSatisfy` validMove board
 
+    it "accepts a triolet as first move" $ do
+      let board = Map.empty
+      let move = [((6, 7), 5), ((7, 7), 5), ((8, 7), 5)]
+      move `shouldSatisfy` validMove board
+
+  describe "score computation" $ do
+    mapM_ exampleMatchScore examples
+
+    it "doubles first tile on the first move" $ do
+      let board = Map.empty
+      let move = [((6, 7), 5), ((7, 7), 5)]
+      scoreFor board move `shouldBe` 15
+
+    it "returns 60 + triolet bonus for a triolet as first move" $ do
+      let board = Map.empty
+      let move = [((6, 7), 5), ((7, 7), 5), ((8, 7), 5)]
+      scoreFor board move `shouldBe` 60 + trioletBonus
+
 exampleMatchScore (i, tiles, move, score) =
-  it (show i) $ scoreFor (Map.fromList tiles) move `shouldBe` score
+  it ("matches example " ++ show i) $ scoreFor (Map.fromList tiles) move `shouldBe` score
 
 examplePlayable (i, tiles, move, score) =
-  it (show i) $ move `shouldSatisfy` validMove (Map.fromList tiles)
+  it ("accepts example " ++ show i) $ move `shouldSatisfy` validMove (Map.fromList tiles)
 
 -- | These are scoring examples extracted from the game rules. The tuples have the form
 -- (example number, tiles on the board, tiles to play, expected score)

@@ -1,7 +1,7 @@
 {-# LANGUAGE TupleSections #-}
 
 module Game
-  ( Move, Board, Coord, Player, GameState(..)
+  ( Tile, Move, Board, Bag, Rack, Coord, Player, GameState(..)
   , boardSize, allCoords, trioletBonus
   , initGame, playMove, playChangeAll, scoreFor, legalMoves, validMove
   , isDouble, isTripple, isBis
@@ -156,8 +156,8 @@ scoreFor board move = baseScore + specials + if length move == 3 then trioletBon
         (coord, tile):_ -> (mult - 1) * if trio then trioSum + trioBonus else tile
           where
             trio = (sumH == trioSum && nbH == trioCount) || (sumV == trioSum && nbV == trioCount)
-            (nbH, sumH) = (+1) *** (+tile) $ countNSumHor coord board
-            (nbV, sumV) = (+1) *** (+tile) $ countNSumVer coord board
+            (nbH, sumH) = (+1) *** (+tile) $ countNSumHor coord board'
+            (nbV, sumV) = (+1) *** (+tile) $ countNSumVer coord board'
 
 
 isDouble :: Coord -> Bool
