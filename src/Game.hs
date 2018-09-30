@@ -30,6 +30,8 @@ rackSize = 3
 tilesCount :: [Int]
 tilesCount = [9, 9, 8, 8, 7, 8, 6, 6, 4, 4, 3, 3, 2, 2, 1, 1] -- and 2 jokers
 
+midBoard = (m, m) where m = boardSize `div` 2
+
 type Tile = Int
 type Coord = (Int, Int)
 type Board = HashMap Coord Tile
@@ -57,19 +59,36 @@ initGame nbPlayers rng = GameState Map.empty bag' (Seq.fromList $ zip (repeat 0)
   where (bag, rng') = runRand initBag rng
         (racks, bag') = runState (initRacks nbPlayers) bag
 
-permsSumLE15 :: Rack -> [[Tile]]
-permsSumLE15 = nub . concatMap permutations . filter valid . tail . subsequences
-  where valid l = sum l <= trioSum && ((length l == trioCount) `implies` (sum l == trioSum))
-
 legalMoves :: Board -> Rack -> [Move]
-legalMoves board rack = filter (not . createsSquare board) $ concatMap (rec board []) $ permsSumLE15 rack
+legalMoves b rack = filter (not . createsSquare b) $ rmdups $ map sort $ concatMap fromCoords anchors
   where
-    rec _     move [] = [move]
-    rec board move (t:ts) = concatMap (\c -> rec (Map.insert c t board) ((c, t):move) ts) validCoords
-      where validCoords = filter (\c -> validTile board c t && aligned board (c:map fst move)) coords
-            coords = case move of
-              [] -> allCoords
-              ((x, y), _):_ -> map (x,) [y-2..y+2] ++ map (,y) [x-2..x+2]
+    anchors = if Map.null b
+                then [midBoard]
+                else filter (isFree b) $ rmdups $ concatMap neighbours $ Map.keys b
+
+    fromCoords c = do
+      (t, ts) <- select rack
+      guard $ validTile b c t
+      next <- liftM2 ($) [first, second] [succ, pred]
+      zs <- [] : fromCoordsWithDir (Map.insert c t b) (next c) ts next
+      return $ (c, t):zs
+
+    fromCoordsWithDir b c tiles next
+      | isFree b c = do
+          (t, ts) <- select tiles
+          guard $ validTile b c t
+          zs <- [] : fromCoordsWithDir (Map.insert c t b) (next c) ts next
+          return $ (c, t):zs
+      | otherwise = do
+          (_, ts) <- select tiles
+          fromCoordsWithDir b (next c) ts next
+
+    select []     = []
+    select (x:xs) = (x,xs) : [(y,x:ys) | (y,ys) <- select xs]
+
+isFree board coords = not $ Map.member coords board
+
+neighbours (x,y) = filter inBoard [(x,y+1), (x,y-1), (x+1,y), (x-1,y)]
 
 validMove :: Board -> Move -> Bool
 validMove board move = allValid board move && aligned board (map fst move) && not (createsSquare board move)
@@ -107,9 +126,8 @@ inBoard (x, y) = x >= 0 && x < boardSize && y >= 0 && y < boardSize
 
 validTile :: Board -> Coord -> Tile -> Bool
 validTile board coord tile =
-  inBoard coord && empty && (firstTile || (adj && gameConstraints))
+  inBoard coord && isFree board coord && (firstTile || (adj && gameConstraints))
   where
-    empty = not $ Map.member coord board
     firstTile = coord == (boardSize `div` 2, boardSize `div` 2)
     (nbH, sumH) = (+1) *** (+tile) $ countNSumHor coord board
     (nbV, sumV) = (+1) *** (+tile) $ countNSumVer coord board
