@@ -19,11 +19,11 @@ import Control.Arrow
 
 import Utils
 
-boardSize, trioSum, trioCount, trioBonus, trioletBonus, rackSize :: Int
+boardSize, trioSum, trioCount, trioMult, trioletBonus, rackSize :: Int
 boardSize = 15
 trioSum = 15
 trioCount = 3
-trioBonus = 15
+trioMult = 2
 trioletBonus = 0
 rackSize = 3
 
@@ -128,7 +128,7 @@ validTile :: Board -> Coord -> Tile -> Bool
 validTile board coord tile =
   inBoard coord && isFree board coord && (firstTile || (adj && gameConstraints))
   where
-    firstTile = coord == (boardSize `div` 2, boardSize `div` 2)
+    firstTile = coord == midBoard
     (nbH, sumH) = (+1) *** (+tile) $ countNSumHor coord board
     (nbV, sumV) = (+1) *** (+tile) $ countNSumVer coord board
     gameConstraints = constrDir (nbH, sumH) && constrDir (nbV, sumV)
@@ -163,7 +163,7 @@ scoreFor board move = baseScore + specials + if length move == 3 then trioletBon
     coords = map fst move
 
     sums fdir = map (sum' fdir) move
-    sum' fdir (c, t) = s' + if s' == trioSum && n == trioCount then trioBonus else 0
+    sum' fdir (c, t) = s' * if s' == trioSum && n == trioCount then trioMult else 1
       where (n, s) = first (+1) $ fdir c board'
             s' = s + if n > 1 then t else 0
 
@@ -171,7 +171,7 @@ scoreFor board move = baseScore + specials + if length move == 3 then trioletBon
     sumSpecial p mult =
       case filter (p . fst) move of
         [] -> 0
-        (coord, tile):_ -> (mult - 1) * if trio then trioSum + trioBonus else tile
+        (coord, tile):_ -> (mult - 1) * if trio then trioSum * trioMult else tile
           where
             trio = (sumH == trioSum && nbH == trioCount) || (sumV == trioSum && nbV == trioCount)
             (nbH, sumH) = (+1) *** (+tile) $ countNSumHor coord board'
@@ -179,30 +179,23 @@ scoreFor board move = baseScore + specials + if length move == 3 then trioletBon
 
 
 isDouble :: Coord -> Bool
-isDouble (x, y) = (y == m && dx == 4) || (x == m && dy == 4) || (dx == 3 && dy == 3) || (x, y) == (m, m)
-  where
-    (dx, dy) = dists (x, y)
-    m = boardSize `div` 2
+isDouble (x, y) = (dy == 0 && dx == 4) || (dx == 0 && dy == 4) || (dx == 3 && dy == 3) || (dx, dy) == (0, 0)
+  where (dx, dy) = dists (x, y)
 
 isTripple :: Coord -> Bool
 isTripple (x, y) = (dx == 3 && dy == 6) || (dx == 6 && dy == 3)
   where (dx, dy) = dists (x, y)
 
 isBis :: Coord -> Bool
-isBis (x, y) = (y == m && dx == 7) || (x == m && dy == 7) || (dx == 6 && dy == 6)
-  where
-    (dx, dy) = dists (x, y)
-    m = boardSize `div` 2
+isBis (x, y) = (dy == 0 && dx == 7) || (dx == 0 && dy == 7) || (dx == 6 && dy == 6)
+  where (dx, dy) = dists (x, y)
 
 dists :: Coord -> (Int, Int)
-dists (x, y) = (dx, dy)
-  where
-    m = boardSize `div` 2
-    dx = abs $ m - x
-    dy = abs $ m - y
+dists (x, y) = (abs $ m - x, abs $ m - y)
+  where m = boardSize `div` 2
 
 updateBoard :: Board -> Move -> Board
-updateBoard = foldl (\b (c, t) -> Map.insert c t b)
+updateBoard = foldl' (\b (c, t) -> Map.insert c t b)
 
 -- assume that the move is valid (i.e. it respects the game constraints and the player owns the played tiles)
 playMove :: GameState -> Move -> (GameState, Int)
