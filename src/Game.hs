@@ -15,6 +15,7 @@ import Control.Monad.State
 import Data.Sequence (Seq)
 import qualified Data.Sequence as Seq
 import Data.List
+import Data.Foldable
 import Control.Arrow
 
 import Utils
@@ -60,12 +61,8 @@ initGame nbPlayers rng = GameState Map.empty bag' (Seq.fromList $ zip (repeat 0)
         (racks, bag') = runState (initRacks nbPlayers) bag
 
 legalMoves :: Board -> Rack -> [Move]
-legalMoves b rack = filter (not . createsSquare b) $ rmdups $ map sort $ concatMap fromCoords anchors
+legalMoves b rack = filter (not . createsSquare b) $ rmdups $ map sort $ concatMap fromCoords $ anchors b
   where
-    anchors = if Map.null b
-                then [midBoard]
-                else filter (isFree b) $ rmdups $ concatMap neighbours $ Map.keys b
-
     fromCoords c = do
       (t, ts) <- select rack
       guard $ validTile b c t
@@ -85,6 +82,13 @@ legalMoves b rack = filter (not . createsSquare b) $ rmdups $ map sort $ concatM
 
     select []     = []
     select (x:xs) = (x,xs) : [(y,x:ys) | (y,ys) <- select xs]
+
+-- | Anchors are the cells which are both free and have at least one adjacent tile.
+-- | The first turn on the game is an exception where the only anchor is the center of the board.
+anchors :: Board -> [Coord]
+anchors b
+  | Map.null b = [midBoard]
+  | otherwise = filter (isFree b) $ rmdups $ concatMap neighbours $ Map.keys b
 
 isFree board coords = not $ Map.member coords board
 
@@ -197,6 +201,12 @@ dists (x, y) = (abs $ m - x, abs $ m - y)
 updateBoard :: Board -> Move -> Board
 updateBoard = foldl' (\b (c, t) -> Map.insert c t b)
 
+isStuck :: GameState -> Bool
+isStuck (GameState board bag players _ _) = not anyTileValid
+  where
+    anyTileValid = or [validTile board coord tile | coord <- anchors board, tile <- allTiles]
+    allTiles = concatMap snd (toList players) ++ bag
+
 -- assume that the move is valid (i.e. it respects the game constraints and the player owns the played tiles)
 playMove :: GameState -> Move -> (GameState, Int)
 playMove gs@(GameState _ _ _ Nothing _) _ = (gs, 0)
@@ -210,9 +220,10 @@ playMove (GameState board bag players (Just currentPlayer) rng) move = (gameStat
     (newTiles, bag') = splitAt (length move) bag
     rack' = newTiles ++ (rack \\ map snd move)
     score' = score + points
-    points = scoreFor board move + if isOver then sum $ concatMap snd players' else 0
+    points = scoreFor board move + if isFinished then sum $ concatMap snd players' else 0
     players' = Seq.update currentPlayer (score', rack') players
-    isOver = null rack'
+    isOver = isFinished || isStuck gameState'
+    isFinished = null rack'
     gameState' = GameState board' bag' players' currentPlayer' rng
 
 playChangeAll :: GameState -> GameState

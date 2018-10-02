@@ -22,9 +22,10 @@ playAI gs@(GameState _ _ _ Nothing _) = (gs, -3)
 playAI gs@(GameState board bag players (Just currentPlayer) _) = gs'
   where
     gs'
-      | not (null currLegalMoves) = playMove gs bestMove
-      | length bag >= 5 = (playChangeAll gs, -1)
-      | otherwise = (gs, -2)
+      | not (null currLegalMoves) = playMove gs $ bestMove
+      | length bag >= 3 = (playChangeAll gs, -1)
+      | otherwise = (gs { currentPlayer = nextPlayer }, -2)
+    nextPlayer = Just $ (currentPlayer + 1) `mod` length players
     currLegalMoves = legalMoves board $ snd $ Seq.index players currentPlayer
     bestMove = maximumOn (evaluate board) currLegalMoves
 
@@ -66,7 +67,7 @@ main = do
     let (gameState', points) = playAI gameState
     let msg = case points of
           -3 -> "Game is over."
-          -2 -> "Player cannot play."
+          -2 -> "Player cannot play, skip turn"
           -1 -> "Player changed all his tiles."
           _  -> "Player scored " ++ show points ++ " points."
     liftIO $ writeIORef game gameState'
