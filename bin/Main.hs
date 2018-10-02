@@ -16,6 +16,7 @@ import System.Console.CmdArgs hiding ((:=))
 
 import Game
 import Utils
+import Eval
 
 playAI :: GameState -> (GameState, Int)
 playAI gs@(GameState _ _ _ Nothing _) = (gs, -3)
@@ -28,9 +29,6 @@ playAI gs@(GameState board bag players (Just currentPlayer) _) = gs'
     nextPlayer = Just $ (currentPlayer + 1) `mod` length players
     currLegalMoves = legalMoves board $ snd $ Seq.index players currentPlayer
     bestMove = maximumOn (evaluate board) currLegalMoves
-
-evaluate :: Board -> Move -> Int
-evaluate board move = scoreFor board move + if any isBis $ map fst move then 30 else 0
 
 data Options = Options { numberPlayers :: Int } deriving (Data, Typeable)
 

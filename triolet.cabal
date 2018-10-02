@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 4984188f03905c6b56af6fcaed6e21c9dfd60b37c4ad95404960885db106a974
+-- hash: aaac0ec34a8f424c0eea10a0e777c6c00860055724c9926b60417b79e4623d9b
 
 name:           triolet
 version:        0.1.0
@@ -16,6 +16,7 @@ build-type:     Simple
 executable triolet
   main-is: Main.hs
   other-modules:
+      Eval
       Game
       Utils
       Paths_triolet
@@ -40,6 +41,7 @@ test-suite spec
   type: exitcode-stdio-1.0
   main-is: Spec.hs
   other-modules:
+      Eval
       Game
       Utils
       Paths_triolet
