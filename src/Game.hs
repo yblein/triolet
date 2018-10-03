@@ -3,7 +3,7 @@
 module Game
   ( Tile, Move, Board, Bag, Rack, Coord, Player, GameState(..)
   , boardSize, allCoords, trioletBonus
-  , initGame, playMove, playChangeAll, scoreFor, legalMoves, validMove
+  , initGame, playMove, playChangeAll, playPass, scoreFor, legalMoves, validMove
   , isDouble, isTripple, isBis
   ) where
 
@@ -28,6 +28,8 @@ trioMult = 2
 trioletBonus = 0
 rackSize = 3
 
+maxScorelessTurns = 3
+
 tilesCount :: [Int]
 tilesCount = [9, 9, 8, 8, 7, 8, 6, 6, 4, 4, 3, 3, 2, 2, 1, 1] -- and 2 jokers
 
@@ -46,6 +48,7 @@ data GameState = GameState
   , bag :: Bag
   , players :: Seq Player
   , currentPlayer :: Maybe Int
+  , nbNullPly :: Int
   , rng :: StdGen
   }
 
@@ -56,7 +59,15 @@ initRacks :: Int -> State Bag [Rack]
 initRacks nbPlayers = replicateM nbPlayers $ state $ splitAt rackSize
 
 initGame :: Int -> StdGen -> GameState
-initGame nbPlayers rng = GameState Map.empty bag' (Seq.fromList $ zip (repeat 0) racks) (Just 0) rng'
+initGame nbPlayers rng =
+  GameState
+    { board = Map.empty
+    , bag = bag'
+    , players = Seq.fromList $ zip (repeat 0) racks
+    , currentPlayer = Just 0
+    , nbNullPly = 0
+    , rng = rng'
+    }
   where (bag, rng') = runRand initBag rng
         (racks, bag') = runState (initRacks nbPlayers) bag
 
@@ -155,7 +166,7 @@ alignDir coord board next = alignDir' (next coord)
 
 scoreFor :: Board -> Move -> Int
 scoreFor _     [] = 0
-scoreFor board move = baseScore + specials + if length move == 3 then trioletBonus else 0
+scoreFor board move = baseScore + specials + if length move == rackSize then trioletBonus else 0
   where
     baseScore
       | onlyFirst              = snd (head move)
@@ -201,38 +212,53 @@ dists (x, y) = (abs $ m - x, abs $ m - y)
 updateBoard :: Board -> Move -> Board
 updateBoard = foldl' (\b (c, t) -> Map.insert c t b)
 
-isStuck :: GameState -> Bool
-isStuck (GameState board bag players _ _) = not anyTileValid
-  where
-    anyTileValid = or [validTile board coord tile | coord <- anchors board, tile <- allTiles]
-    allTiles = concatMap snd (toList players) ++ bag
-
 -- assume that the move is valid (i.e. it respects the game constraints and the player owns the played tiles)
 playMove :: GameState -> Move -> (GameState, Int)
-playMove gs@(GameState _ _ _ Nothing _) _ = (gs, 0)
-playMove (GameState board bag players (Just currentPlayer) rng) move = (gameState', points)
+playMove gs@(GameState { currentPlayer = Nothing }) _ = (gs, 0)
+playMove gs@(GameState { currentPlayer = (Just currentPlayer) }) move =
+  (gs
+    { board = board'
+    , bag = bag'
+    , players = players'
+    , currentPlayer = currentPlayer'
+    , nbNullPly = nbNullPly'
+    }
+  , points)
   where
-    board' = updateBoard board move
-    (score, rack) = Seq.index players currentPlayer
+    board' = updateBoard (board gs) move
+    (score, rack) = Seq.index (players gs) currentPlayer
     hasBis = any isBis $ map fst move
-    nextPlayer = if hasBis then currentPlayer else (currentPlayer + 1) `mod` length players
+    nextPlayer = if hasBis then currentPlayer else (currentPlayer + 1) `mod` nbPlayers
     currentPlayer' = if isOver then Nothing else Just nextPlayer
-    (newTiles, bag') = splitAt (length move) bag
+    (newTiles, bag') = splitAt (length move) (bag gs)
     rack' = newTiles ++ (rack \\ map snd move)
     score' = score + points
-    points = scoreFor board move + if isFinished then sum $ concatMap snd players' else 0
-    players' = Seq.update currentPlayer (score', rack') players
-    isOver = isFinished || isStuck gameState'
+    points = scoreFor (board gs) move + if isFinished then sum $ concatMap snd players' else 0
+    players' = Seq.update currentPlayer (score', rack') (players gs)
+    nbPlayers = length (players gs)
+    isOver = isFinished || isStuck
     isFinished = null rack'
-    gameState' = GameState board' bag' players' currentPlayer' rng
+    isStuck = nbNullPly' >= maxScorelessTurns * nbPlayers
+    nbNullPly' = if points == 0 then nbNullPly gs + 1 else 0
 
 playChangeAll :: GameState -> GameState
-playChangeAll gs@(GameState _ _ _ Nothing _) = gs
-playChangeAll (GameState board bag players (Just currentPlayer) rng) = gameState'
-  where
-    gameState' = GameState board bag'' players' currentPlayer' rng'
+playChangeAll gs@(GameState { currentPlayer = Nothing }) = gs
+playChangeAll gs@(GameState { bag, players, currentPlayer = (Just currentPlayer), rng }) =
+  playPass $ gs { bag = bag'', players = players', rng = rng' }
+   where
     (score, rack) = Seq.index players currentPlayer
-    currentPlayer' = Just $ (currentPlayer + 1) `mod` length players
-    (rack', bag') = splitAt 3 bag
-    players' = Seq.update currentPlayer (score, rack') players
+    (rack', bag') = splitAt rackSize bag
     (bag'', rng') = runRand (shuffleM $ rack ++ bag') rng
+    players' = Seq.update currentPlayer (score, rack') players
+
+playPass :: GameState -> GameState
+playPass gs@(GameState { currentPlayer = Nothing }) = gs
+playPass gs@(GameState { currentPlayer = (Just currentPlayer) }) =
+  gs
+    { currentPlayer = if isStuck then Nothing else Just $ (currentPlayer + 1) `mod` nbPlayers
+    , nbNullPly = nbNullPly'
+    }
+  where
+    nbPlayers = length $ players gs
+    isStuck = nbNullPly' >= maxScorelessTurns * nbPlayers
+    nbNullPly' = nbNullPly gs + 1

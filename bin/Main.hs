@@ -19,14 +19,13 @@ import Utils
 import Eval
 
 playAI :: GameState -> (GameState, Int)
-playAI gs@(GameState _ _ _ Nothing _) = (gs, -3)
-playAI gs@(GameState board bag players (Just currentPlayer) _) = gs'
+playAI gs@(GameState { currentPlayer = Nothing }) = (gs, -3)
+playAI gs@(GameState { board, bag, players, currentPlayer = (Just currentPlayer) }) = gs'
   where
     gs'
       | not (null currLegalMoves) = playMove gs $ bestMove
       | length bag >= 3 = (playChangeAll gs, -1)
-      | otherwise = (gs { currentPlayer = nextPlayer }, -2)
-    nextPlayer = Just $ (currentPlayer + 1) `mod` length players
+      | otherwise = (playPass gs, -2)
     currLegalMoves = legalMoves board $ snd $ Seq.index players currentPlayer
     bestMove = maximumOn (evaluate board) currLegalMoves
 
@@ -96,12 +95,12 @@ boardWidth = 600
 tileWidth = boardWidth / fromIntegral boardSize
 
 drawGame :: GameState -> Render ()
-drawGame (GameState board _ players currentPlayer _) = do
+drawGame gs = do
   selectFontFace "Sans" FontSlantNormal FontWeightBold
   setFontSize 22
 
-  drawBoard board
-  mapM_ drawPlayer $ zip (map (\i -> (i, Just i == currentPlayer)) [0..]) $ toList players
+  drawBoard (board gs)
+  mapM_ drawPlayer $ zip (map (\i -> (i, Just i == currentPlayer gs)) [0..]) $ toList (players gs)
 
 drawBoard :: Board -> Render ()
 drawBoard board = withLocalState $ do

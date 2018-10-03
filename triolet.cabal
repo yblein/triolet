@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: aaac0ec34a8f424c0eea10a0e777c6c00860055724c9926b60417b79e4623d9b
+-- hash: 86baf0b4ecc4803caa79c0a5ee6517dfe5d382d8379775c5e17fd9dea25c697a
 
 name:           triolet
 version:        0.1.0
@@ -23,6 +23,7 @@ executable triolet
   hs-source-dirs:
       src
       bin
+  default-extensions: NamedFieldPuns
   ghc-options: -main-is Main
   build-depends:
       MonadRandom
@@ -48,6 +49,7 @@ test-suite spec
   hs-source-dirs:
       src
       test
+  default-extensions: NamedFieldPuns
   ghc-options: -main-is Spec
   build-depends:
       MonadRandom

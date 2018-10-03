@@ -2,6 +2,9 @@ name: triolet
 synopsis: Haskell implementation of the board game Triolet
 version: 0.1.0
 
+default-extensions:
+    - NamedFieldPuns
+
 dependencies:
     - base >= 4.9 && < 5
     - mtl
