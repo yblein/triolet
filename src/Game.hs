@@ -2,6 +2,7 @@
 
 module Game
   ( Tile, Move, Board, Bag, Rack, Coord, Player, GameState(..)
+  , freeJoker, fixedJoker, isJoker
   , boardSize, allCoords, trioletBonus
   , initGame, playMove, playChangeAll, playPass, scoreFor, legalMoves, validMove
   , isDouble, isTripple, isBis
@@ -31,7 +32,7 @@ rackSize = 3
 maxScorelessTurns = 3
 
 tilesCount :: [Int]
-tilesCount = [9, 9, 8, 8, 7, 8, 6, 6, 4, 4, 3, 3, 2, 2, 1, 1] -- and 2 jokers
+tilesCount = [9, 9, 8, 8, 7, 8, 6, 6, 4, 4, 3, 3, 2, 2, 1, 1, 2]
 
 midBoard = (m, m) where m = boardSize `div` 2
 
@@ -51,6 +52,25 @@ data GameState = GameState
   , nbNullPly :: Int
   , rng :: StdGen
   }
+
+-- We represent a joker whose value is still free (i.e. on a rack or in the bag) by the integer 16.
+-- Jokers with a fixed values (i.e. in a move or on the board) are represented by `17 + value`.
+
+freeJoker :: Tile
+freeJoker = 16
+
+fixedJoker :: Int -> Tile
+fixedJoker n = 17 + n
+
+isJoker :: Tile -> Bool
+isJoker = (>= 16)
+
+-- The given tile must not be a free joker
+tileValue :: Tile -> Int
+tileValue t
+  | t == freeJoker = error "free jokers have no value"
+  | otherwise = if isJoker t then t - 17 else t
+
 
 initBag :: Rand StdGen Bag
 initBag = shuffleM $ concat $ zipWith replicate tilesCount [0..]
@@ -72,10 +92,13 @@ initGame nbPlayers rng =
         (racks, bag') = runState (initRacks nbPlayers) bag
 
 legalMoves :: Board -> Rack -> [Move]
-legalMoves b rack = filter (not . createsSquare b) $ rmdups $ map sort $ concatMap fromCoords $ anchors b
+legalMoves b rack = filter (not . createsSquare b) $ filter oneJockerMax allMoves
   where
+    allMoves = map sort $ rmdups $ concatMap fromCoords $ anchors b
+
     fromCoords c = do
-      (t, ts) <- select rack
+      (t', ts) <- select rack
+      t <- if isJoker t' then map fixedJoker [0..15] else [t']
       guard $ validTile b c t
       next <- liftM2 ($) [first, second] [succ, pred]
       zs <- [] : fromCoordsWithDir (Map.insert c t b) (next c) ts next
@@ -83,7 +106,8 @@ legalMoves b rack = filter (not . createsSquare b) $ rmdups $ map sort $ concatM
 
     fromCoordsWithDir b c tiles next
       | isFree b c = do
-          (t, ts) <- select tiles
+          (t', ts) <- select tiles
+          t <- if isJoker t' then map fixedJoker [0..15] else [t']
           guard $ validTile b c t
           zs <- [] : fromCoordsWithDir (Map.insert c t b) (next c) ts next
           return $ (c, t):zs
@@ -105,8 +129,10 @@ isFree board coords = not $ Map.member coords board
 
 neighbours (x,y) = filter inBoard [(x,y+1), (x,y-1), (x+1,y), (x-1,y)]
 
+oneJockerMax move = length (filter isJoker $ map snd move) <= 1
+
 validMove :: Board -> Move -> Bool
-validMove board move = allValid board move && aligned board (map fst move) && not (createsSquare board move)
+validMove b move = allValid b move && aligned b (map fst move) && not (createsSquare b move) && oneJockerMax move
   where
     -- the move may not be given in proper order, just check that at least one permutation is valid
     allValid board move = any (allValid' board) (permutations move)
@@ -144,8 +170,8 @@ validTile board coord tile =
   inBoard coord && isFree board coord && (firstTile || (adj && gameConstraints))
   where
     firstTile = coord == midBoard
-    (nbH, sumH) = (+1) *** (+tile) $ countNSumHor coord board
-    (nbV, sumV) = (+1) *** (+tile) $ countNSumVer coord board
+    (nbH, sumH) = (+1) *** (+tileValue tile) $ countNSumHor coord board
+    (nbV, sumV) = (+1) *** (+tileValue tile) $ countNSumVer coord board
     gameConstraints = constrDir (nbH, sumH) && constrDir (nbV, sumV)
     constrDir (nb, sum) = nb <= trioCount && sum <= trioSum && ((nb == trioCount) `implies` (sum == trioSum))
     adj = nbH >= 2 || nbV >= 2
@@ -161,37 +187,42 @@ alignDir coord board next = alignDir' (next coord)
   where
     alignDir' coord =
       case Map.lookup coord board of
-        Just t -> t:alignDir' (next coord)
+        Just t -> tileValue t:alignDir' (next coord)
         Nothing -> []
 
 scoreFor :: Board -> Move -> Int
 scoreFor _     [] = 0
-scoreFor board move = baseScore + specials + if length move == rackSize then trioletBonus else 0
+scoreFor board move = baseScore + specials + if isTriolet then trioletBonus else 0
   where
     baseScore
       | onlyFirst              = snd (head move)
-      | allEq (map fst coords) = head (sums countNSumVer) + sum (sums countNSumHor)
-      | otherwise              = head (sums countNSumHor) + sum (sums countNSumVer)
+      | allEq (map fst coords) = minimum (sums countNSumVer) + sum (sums countNSumHor)
+      | otherwise              = minimum (sums countNSumHor) + sum (sums countNSumVer)
 
     board' = updateBoard board move
     onlyFirst = Map.size board' == 1
     coords = map fst move
+    isTriolet = length move == rackSize && not (any isJoker $ map snd move)
 
     sums fdir = map (sum' fdir) move
-    sum' fdir (c, t) = s' * if s' == trioSum && n == trioCount then trioMult else 1
-      where (n, s) = first (+1) $ fdir c board'
-            s' = s + if n > 1 then t else 0
+    sum' fdir (c, t)
+      | isTrio = trioSum * trioMult
+      | isJoker t = s
+      | otherwise = s'
+      where
+        (n, s) = first (+1) $ fdir c board'
+        s' = s + if n > 1 then tileValue t else 0
+        isTrio = s' == trioSum && n == trioCount
 
     specials = sumSpecial isDouble 2 + sumSpecial isTripple 3
     sumSpecial p mult =
       case filter (p . fst) move of
         [] -> 0
-        (coord, tile):_ -> (mult - 1) * if trio then trioSum * trioMult else tile
+        (coord, tile):_ -> (mult - 1) * if trio then trioSum * trioMult else (if isJoker tile then 0 else tile)
           where
             trio = (sumH == trioSum && nbH == trioCount) || (sumV == trioSum && nbV == trioCount)
-            (nbH, sumH) = (+1) *** (+tile) $ countNSumHor coord board'
-            (nbV, sumV) = (+1) *** (+tile) $ countNSumVer coord board'
-
+            (nbH, sumH) = (+1) *** (+tileValue tile) $ countNSumHor coord board'
+            (nbV, sumV) = (+1) *** (+tileValue tile) $ countNSumVer coord board'
 
 isDouble :: Coord -> Bool
 isDouble (x, y) = (dy == 0 && dx == 4) || (dx == 0 && dy == 4) || (dx == 3 && dy == 3) || (dx, dy) == (0, 0)
@@ -231,7 +262,7 @@ playMove gs@(GameState { currentPlayer = (Just currentPlayer) }) move =
     nextPlayer = if hasBis then currentPlayer else (currentPlayer + 1) `mod` nbPlayers
     currentPlayer' = if isOver then Nothing else Just nextPlayer
     (newTiles, bag') = splitAt (length move) (bag gs)
-    rack' = newTiles ++ (rack \\ map snd move)
+    rack' = newTiles ++ (rack \\ map (\(_, t) -> if isJoker t then freeJoker else t) move)
     score' = score + points
     points = scoreFor (board gs) move + if isFinished then sum $ concatMap snd players' else 0
     players' = Seq.update currentPlayer (score', rack') (players gs)

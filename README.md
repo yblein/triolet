@@ -18,7 +18,7 @@ You can find more information about the game at [BoardGameGeek](https://boardgam
 
 ## Status
 
-Most of the game is implemented, except *joker* tiles (replace any tile).
+All the game mechanics are implemented.
 Only the computer is playing, and it does so naively: it simply maximizes its points at each turn.
 
 ## Build and run

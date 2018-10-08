@@ -94,6 +94,8 @@ setColorBis     = setSourceRGB 0.918 0.412 0.067
 boardWidth = 600
 tileWidth = boardWidth / fromIntegral boardSize
 
+jokerChar = 'χ' -- '✯'
+
 drawGame :: GameState -> Render ()
 drawGame gs = do
   selectFontFace "Sans" FontSlantNormal FontWeightBold
@@ -139,7 +141,7 @@ drawTile ((x, y), t) = do
   setColorTile
   drawRoundedRect (x' - w) (x' + w) (y' - w) (y' + w) 4
   setColorBlack
-  drawText x' y' (show t)
+  drawText x' y' $ if isJoker t then [jokerChar] else show t
 
 drawPlayer :: ((Int, Bool), Player) -> Render ()
 drawPlayer ((i, curr), (score, rack)) = withLocalState $ do
