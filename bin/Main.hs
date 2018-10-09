@@ -82,7 +82,7 @@ main = do
     w <- liftIO (fromIntegral <$> widgetGetAllocatedWidth drawingArea)
     h <- liftIO (fromIntegral <$> widgetGetAllocatedHeight drawingArea)
     translate (w / 2) (h / 2)
-    let ratio = (min w h) / 900
+    let ratio = (min w h) / 750
     scale ratio ratio
     game' <- liftIO $ readIORef game
     drawGame game'
@@ -97,6 +97,10 @@ setColorDouble  = setSourceRGB 0.98 0.757 0.059
 setColorTripple = setSourceRGB 0.875 0.078 0.078
 setColorBis     = setSourceRGB 0.918 0.412 0.067
 
+fontFamily = "Sans"
+selectFontNormal = selectFontFace fontFamily FontSlantNormal FontWeightNormal
+selectFontBold = selectFontFace fontFamily FontSlantNormal FontWeightBold
+
 boardWidth = 600
 tileWidth = boardWidth / fromIntegral boardSize
 
@@ -104,11 +108,11 @@ jokerChar = 'χ' -- '✯'
 
 drawGame :: GameState -> Render ()
 drawGame gs = do
-  selectFontFace "Sans" FontSlantNormal FontWeightBold
   setFontSize 22
+  translate 0 (-1.5 * tileWidth)
 
   drawBoard (board gs)
-  mapM_ drawPlayer $ zip (map (\i -> (i, Just i == currentPlayer gs)) [0..]) $ toList (players gs)
+  drawPlayers gs
 
 drawBoard :: Board -> Render ()
 drawBoard board = withLocalState $ do
@@ -138,6 +142,7 @@ drawBoard board = withLocalState $ do
   stroke
 
   -- tiles
+  selectFontBold
   mapM_ drawTile $ Map.toList board
 
 drawTile :: (Coord, Int) -> Render ()
@@ -149,23 +154,35 @@ drawTile ((x, y), t) = do
   setColorBlack
   drawText x' y' $ if isJoker t then [jokerChar] else show t
 
-drawPlayer :: ((Int, Bool), Player) -> Render ()
-drawPlayer ((i, curr), player) = withLocalState $ do
-  rotate $ fromIntegral i * pi / 2
-  translate (- tileWidth / 2) $ 3 * boardWidth / 5
+drawPlayers :: GameState -> Render ()
+drawPlayers gs = withLocalState $ do
+  translate (-0.5 * boardWidth) (3 / 5 * boardWidth)
 
-  -- rack background
-  rectangle (- tileWidth) 0 (tileWidth * 3) tileWidth
-  setColorRack
-  fill
+  let rackWidth = 3 * tileWidth
+  let totalSpacing = boardWidth - rackWidth * fromIntegral (length (players gs))
+  let tx = rackWidth + totalSpacing / fromIntegral (length (players gs) - 1)
 
-  -- rack tiles
-  mapM_ drawTile $ zip (zip [-1, 0, 1] $ repeat 0) $ rack player
+  forM_ (zip [0..] $ toList $ players gs) $ \(i, player) -> do
+    -- name
+    selectFontNormal
+    setColorBlack
+    let ind = if Just i == currentPlayer gs then "*" else ""
+    drawText (1.5 * tileWidth) (-0.5 * tileWidth) (ind ++ name player)
 
-  -- score and turn indicator
-  setColorBlack
-  drawText (tileWidth * 5) (tileWidth / 2) $ show $ score player
-  when curr $ drawText (tileWidth * 4) (tileWidth / 2) "*"
+    -- score
+    setColorBlack
+    drawText (1.5 * tileWidth) (1.5 * tileWidth) $ show $ score player
+
+    -- rack background
+    rectangle 0 0 (tileWidth * 3) tileWidth
+    setColorRack
+    fill
+
+    -- rack tiles
+    selectFontBold
+    mapM_ drawTile [((x, 0), t) | (x, t) <- zip [0..] (rack player)]
+
+    translate tx 0
 
 line :: Double -> Double -> Double -> Double -> Render ()
 line a b c d = moveTo a b >> lineTo c d
