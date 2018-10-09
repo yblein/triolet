@@ -1,7 +1,7 @@
 {-# LANGUAGE TupleSections #-}
 
 module Game
-  ( Tile, Move, Board, Bag, Rack, Coord, Player, GameState(..)
+  ( Tile, Move, Board, Bag, Rack, Coord, Player(..), GameState(..)
   , freeJoker, fixedJoker, isJoker
   , boardSize, allCoords, trioletBonus
   , initGame, playMove, playChangeAll, playPass, scoreFor, legalMoves, validMove
@@ -42,7 +42,11 @@ type Board = HashMap Coord Tile
 type Bag = [Tile]
 type Rack = [Tile]
 type Move = [(Coord, Tile)]
-type Player = (Int, Rack)
+
+data Player = Player
+  { score :: Int
+  , rack :: Rack
+  }
 
 data GameState = GameState
   { board :: Board
@@ -83,7 +87,7 @@ initGame nbPlayers rng =
   GameState
     { board = Map.empty
     , bag = bag'
-    , players = Seq.fromList $ zip (repeat 0) racks
+    , players = Seq.fromList [Player { score = 0, rack } | rack <- racks]
     , currentPlayer = Just 0
     , nbNullPly = 0
     , rng = rng'
@@ -257,15 +261,15 @@ playMove gs@(GameState { currentPlayer = (Just currentPlayer) }) move =
   , points)
   where
     board' = updateBoard (board gs) move
-    (score, rack) = Seq.index (players gs) currentPlayer
+    player = Seq.index (players gs) currentPlayer
     hasBis = any isBis $ map fst move
     nextPlayer = if hasBis then currentPlayer else (currentPlayer + 1) `mod` nbPlayers
     currentPlayer' = if isOver then Nothing else Just nextPlayer
     (newTiles, bag') = splitAt (length move) (bag gs)
-    rack' = newTiles ++ (rack \\ map (\(_, t) -> if isJoker t then freeJoker else t) move)
-    score' = score + points
-    points = scoreFor (board gs) move + if isFinished then sum $ concatMap snd players' else 0
-    players' = Seq.update currentPlayer (score', rack') (players gs)
+    rack' = newTiles ++ (rack player \\ map (\(_, t) -> if isJoker t then freeJoker else t) move)
+    score' = score player + points
+    points = scoreFor (board gs) move + if isFinished then sum $ concatMap rack players' else 0
+    players' = Seq.update currentPlayer (player { score = score', rack = rack' }) (players gs)
     nbPlayers = length (players gs)
     isOver = isFinished || isStuck
     isFinished = null rack'
@@ -277,10 +281,10 @@ playChangeAll gs@(GameState { currentPlayer = Nothing }) = gs
 playChangeAll gs@(GameState { bag, players, currentPlayer = (Just currentPlayer), rng }) =
   playPass $ gs { bag = bag'', players = players', rng = rng' }
    where
-    (score, rack) = Seq.index players currentPlayer
+    player = Seq.index players currentPlayer
     (rack', bag') = splitAt rackSize bag
-    (bag'', rng') = runRand (shuffleM $ rack ++ bag') rng
-    players' = Seq.update currentPlayer (score, rack') players
+    (bag'', rng') = runRand (shuffleM $ rack player ++ bag') rng
+    players' = Seq.update currentPlayer (player { rack = rack' }) players
 
 playPass :: GameState -> GameState
 playPass gs@(GameState { currentPlayer = Nothing }) = gs

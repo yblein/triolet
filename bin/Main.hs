@@ -26,7 +26,7 @@ playAI gs@(GameState { board, bag, players, currentPlayer = (Just currentPlayer)
       | not (null currLegalMoves) = playMove gs $ bestMove
       | length bag >= 3 = (playChangeAll gs, -1)
       | otherwise = (playPass gs, -2)
-    currLegalMoves = legalMoves board $ snd $ Seq.index players currentPlayer
+    currLegalMoves = legalMoves board $ rack $ Seq.index players currentPlayer
     bestMove = maximumOn (evaluate board) currLegalMoves
 
 data Options = Options { numberPlayers :: Int } deriving (Data, Typeable)
@@ -144,7 +144,7 @@ drawTile ((x, y), t) = do
   drawText x' y' $ if isJoker t then [jokerChar] else show t
 
 drawPlayer :: ((Int, Bool), Player) -> Render ()
-drawPlayer ((i, curr), (score, rack)) = withLocalState $ do
+drawPlayer ((i, curr), player) = withLocalState $ do
   rotate $ fromIntegral i * pi / 2
   translate (- tileWidth / 2) $ 3 * boardWidth / 5
 
@@ -154,11 +154,11 @@ drawPlayer ((i, curr), (score, rack)) = withLocalState $ do
   fill
 
   -- rack tiles
-  mapM_ drawTile $ zip (zip [-1, 0, 1] $ repeat 0) rack
+  mapM_ drawTile $ zip (zip [-1, 0, 1] $ repeat 0) $ rack player
 
   -- score and turn indicator
   setColorBlack
-  drawText (tileWidth * 5) (tileWidth / 2) $ show score
+  drawText (tileWidth * 5) (tileWidth / 2) $ show $ score player
   when curr $ drawText (tileWidth * 4) (tileWidth / 2) "*"
 
 line :: Double -> Double -> Double -> Double -> Render ()
