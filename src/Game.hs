@@ -46,6 +46,7 @@ type Move = [(Coord, Tile)]
 data Player = Player
   { score :: Int
   , rack :: Rack
+  , name :: String
   }
 
 data GameState = GameState
@@ -82,18 +83,18 @@ initBag = shuffleM $ concat $ zipWith replicate tilesCount [0..]
 initRacks :: Int -> State Bag [Rack]
 initRacks nbPlayers = replicateM nbPlayers $ state $ splitAt rackSize
 
-initGame :: Int -> StdGen -> GameState
-initGame nbPlayers rng =
+initGame :: [String] -> StdGen -> GameState
+initGame names rng =
   GameState
     { board = Map.empty
     , bag = bag'
-    , players = Seq.fromList [Player { score = 0, rack } | rack <- racks]
+    , players = Seq.fromList [Player { score = 0, rack, name } | (rack, name) <- zip racks names]
     , currentPlayer = Just 0
     , nbNullPly = 0
     , rng = rng'
     }
   where (bag, rng') = runRand initBag rng
-        (racks, bag') = runState (initRacks nbPlayers) bag
+        (racks, bag') = runState (initRacks $ length names) bag
 
 legalMoves :: Board -> Rack -> [Move]
 legalMoves b rack = filter (not . createsSquare b) $ filter oneJockerMax allMoves

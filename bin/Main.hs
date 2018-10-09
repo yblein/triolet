@@ -12,21 +12,20 @@ import Data.Foldable
 import System.Random
 import qualified Data.HashMap.Strict as Map
 import qualified Data.Sequence as Seq
-import System.Console.CmdArgs hiding ((:=))
+import System.Console.CmdArgs hiding ((:=), name)
 
 import Game
 import Utils
 import Eval
 
-playAI :: GameState -> (GameState, Int)
-playAI gs@(GameState { currentPlayer = Nothing }) = (gs, -3)
-playAI gs@(GameState { board, bag, players, currentPlayer = (Just currentPlayer) }) = gs'
+playAI :: GameState -> Player -> (GameState, Int)
+playAI gs@(GameState { board, bag }) player = gs'
   where
     gs'
       | not (null currLegalMoves) = playMove gs $ bestMove
       | length bag >= 3 = (playChangeAll gs, -1)
       | otherwise = (playPass gs, -2)
-    currLegalMoves = legalMoves board $ rack $ Seq.index players currentPlayer
+    currLegalMoves = legalMoves board $ rack player
     bestMove = maximumOn (evaluate board) currLegalMoves
 
 data Options = Options { numberPlayers :: Int } deriving (Data, Typeable)
@@ -41,7 +40,8 @@ main = do
   unless (numberPlayers options `elem` [2..4]) $ fail "the number of players must be in [2..4]"
 
   -- setStdGen $ mkStdGen 4
-  game <- newStdGen >>= (newIORef . initGame (numberPlayers options))
+  let names = map (\i -> "Player " ++ show i) [1..numberPlayers options]
+  game <- newStdGen >>= (newIORef . initGame names)
 
   initGUI
 
@@ -61,15 +61,21 @@ main = do
 
   on window keyPressEvent $ do
     gameState <- liftIO $ readIORef game
-    let (gameState', points) = playAI gameState
-    let msg = case points of
-          -3 -> "Game is over."
-          -2 -> "Player cannot play, skip turn"
-          -1 -> "Player changed all his tiles."
-          _  -> "Player scored " ++ show points ++ " points."
-    liftIO $ writeIORef game gameState'
+
+    msg <- case currentPlayer gameState of
+      Nothing -> return "Game is over."
+      Just currentPlayer -> do
+        let player = Seq.index (players gameState) currentPlayer
+        let (gameState', points) = playAI gameState player
+        let msg = name player ++ case points of
+              -2 -> " cannot play, skip turn"
+              -1 -> " changed all his tiles."
+              _  -> " scored " ++ show points ++ " points."
+        liftIO $ writeIORef game gameState'
+        liftIO $ widgetQueueDraw drawingArea
+        return msg
+
     liftIO $ statusbarPush statusbar 0 msg
-    liftIO $ widgetQueueDraw drawingArea
     return True
 
   on drawingArea draw $ do
