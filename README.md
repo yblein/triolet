@@ -7,7 +7,7 @@ This is a simple simulation of the board game Triolet, written in Haskell.
 ## Basic rules
 
 Triolet basically is "Scrabble with numbers".
-The game revolves around on the three following simple constraints:
+The game revolves around three simple constraints:
 
 - at most 3 tiles can be aligned adjacently;
 - the sum of adjacent aligned tiles must not exceed 15;
